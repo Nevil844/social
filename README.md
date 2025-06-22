@@ -5,6 +5,7 @@ A modern, feature-rich multiplayer virtual workspace inspired by Gather Town, bu
 ![Social](https://img.shields.io/badge/Status-Active-green)
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
+![Auth](https://img.shields.io/badge/Auth-Google%20OAuth-blue)
 
 ## ✨ Features
 
@@ -14,6 +15,15 @@ A modern, feature-rich multiplayer virtual workspace inspired by Gather Town, bu
 - **Realistic Human Avatars** - Diverse, detailed SVG characters with multiple customization options
 - **Room-based System** - Create public/private rooms with custom settings
 - **Multiple Beautiful Maps** - 6 stunning environments (Office, Park, Café, Campus, Beach, Space Station)
+
+### 🔐 Authentication & User Management
+- **Google OAuth Integration** - Secure login with Google accounts
+- **User Profiles** - Display names, emails, and profile pictures from Google
+- **Video Call Limits** - Control API usage with daily limits
+  - Authenticated users: 20 minutes of video calls per day
+  - Anonymous users: No video call access
+- **User Preferences** - Save default map, max players, and notification settings
+- **Premium Features** - Coming soon (unlimited video calls)
 
 ### 🎨 Visual Design
 - **Modern UI/UX** - Glassmorphism design with beautiful gradients and animations
@@ -25,6 +35,8 @@ A modern, feature-rich multiplayer virtual workspace inspired by Gather Town, bu
 - **WebRTC Video Calls** - Integrated Daily.co for high-quality video communication
 - **Real-time Chat** - Proximity-based messaging system
 - **Socket.IO** - Real-time multiplayer synchronization
+- **JWT Authentication** - Secure token-based authentication
+- **Session Management** - Persistent user sessions
 - **Docker Ready** - Containerized for easy deployment
 - **Production Optimized** - Multi-stage Docker builds with health checks
 
@@ -122,10 +134,36 @@ social/
 Create a `.env` file in the server directory:
 
 ```env
+# Server Configuration
 NODE_ENV=production
 PORT=3001
+
+# Daily.co API (for video calls)
 DAILY_API_KEY=your_daily_api_key_here
+
+# Google OAuth (for authentication)
+GOOGLE_CLIENT_ID=your_google_client_id_here
+GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+
+# Session and JWT Secrets (change these in production!)
+SESSION_SECRET=your-super-secret-session-key-change-in-production
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+
+# Client URL (for OAuth redirects)
+CLIENT_URL=http://localhost:5173
 ```
+
+### 🔐 Google OAuth Setup
+
+To enable user authentication, you need Google OAuth credentials:
+
+1. **Create Google Cloud Project**: Visit [Google Cloud Console](https://console.cloud.google.com/)
+2. **Enable Google+ API**: Go to APIs & Services > Library
+3. **Create OAuth Credentials**: Go to APIs & Services > Credentials
+4. **Configure Redirect URIs**: Add `http://localhost:3001/auth/google/callback` for development
+5. **Add to .env**: Place your Client ID and Client Secret in the server `.env` file
+
+**Note**: See [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md) for detailed setup instructions.
 
 ### 🎥 Video Call Setup
 
@@ -151,6 +189,22 @@ The Daily.co API key enables:
 - ⚠️ Limited functionality
 - ⚠️ Demo room URLs
 - ⚠️ No room cleanup
+
+### 👤 Authentication Features
+
+With Google OAuth configured:
+- ✅ Secure user authentication
+- ✅ User profile management
+- ✅ Video call usage tracking (20 minutes/day)
+- ✅ User preferences storage
+- ✅ Session persistence
+- ✅ Premium features coming soon
+
+**Without OAuth**:
+- ⚠️ Anonymous users only
+- ⚠️ No user profiles
+- ⚠️ No video call access
+- ⚠️ No preferences storage
 
 ## 🐳 Docker Commands
 

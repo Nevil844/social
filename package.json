@@ -1,16 +1,16 @@
 {
   "name": "social",
   "version": "1.0.0",
-  "description": "A modern multiplayer virtual workspace for social interaction and collaboration",
+  "description": "Multiplayer virtual workspace inspired by Gather Town",
   "main": "index.js",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev": "concurrently --kill-others \"npm run server\" \"npm run client\"",
     "server": "cd server && npm run dev",
     "client": "cd client && npm run dev",
     "build": "cd client && npm run build",
     "start": "cd server && npm start"
   },
-  "keywords": ["social", "virtual-workspace", "multiplayer", "react", "phaser", "socketio"],
+  "keywords": ["multiplayer", "virtual-workspace", "gather-town", "react", "nodejs", "socketio"],
   "author": "Your Name",
   "license": "MIT",
   "devDependencies": {

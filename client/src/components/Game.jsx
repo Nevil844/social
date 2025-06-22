@@ -13,7 +13,7 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       width: window.innerWidth,
       height: window.innerHeight,
       parent: gameRef.current,
-      backgroundColor: '#f8fafc',
+      backgroundColor: '#0f0a1a', // Dark purple background
       physics: {
         default: 'arcade',
         arcade: {
@@ -82,13 +82,13 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       
       const mapConfigs = {
         office: {
-          baseColors: [0xf8fafc, 0xe2e8f0],
-          accent: 0x3b82f6,
+          baseColors: [0x1a1625, 0x2d1b69], // Dark purple theme
+          accent: 0x7c3aed,
           structures: [
             // Conference Room with glass effect
-            { x: 5, y: 5, w: 8, h: 6, color: 0x1e40af, alpha: 0.9, type: 'conference' },
+            { x: 5, y: 5, w: 8, h: 6, color: 0x5b21b6, alpha: 0.9, type: 'conference' },
             // Executive Office
-            { x: 20, y: 3, w: 10, h: 8, color: 0x7c3aed, alpha: 0.8, type: 'office' },
+            { x: 20, y: 3, w: 10, h: 8, color: 0x8b5cf6, alpha: 0.8, type: 'office' },
             // Open workspace
             { x: 3, y: 15, w: 12, h: 8, color: 0x059669, alpha: 0.7, type: 'workspace' },
             // Break room with kitchen
@@ -107,7 +107,7 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
           ]
         },
         park: {
-          baseColors: [0x84cc16, 0x65a30d],
+          baseColors: [0x1a1625, 0x2d1b69], // Dark purple theme
           accent: 0x22c55e,
           structures: [
             // Large pond with ripple effects
@@ -131,7 +131,7 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
           ]
         },
         cafe: {
-          baseColors: [0xfef3c7, 0xfde68a],
+          baseColors: [0x1a1625, 0x2d1b69], // Dark purple theme
           accent: 0xd97706,
           structures: [
             // Main dining area
@@ -155,7 +155,7 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
           ]
         },
         campus: {
-          baseColors: [0xf1f5f9, 0xe2e8f0],
+          baseColors: [0x1a1625, 0x2d1b69], // Dark purple theme
           accent: 0x7c3aed,
           structures: [
             // Main library building
@@ -179,7 +179,7 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
           ]
         },
         beach: {
-          baseColors: [0xfef3c7, 0xfde047],
+          baseColors: [0x1a1625, 0x2d1b69], // Dark purple theme
           accent: 0x06b6d4,
           structures: [
             // Ocean with waves

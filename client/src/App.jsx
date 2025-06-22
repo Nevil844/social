@@ -4,9 +4,11 @@ import Game from './components/Game';
 import ProximityUI from './components/ProximityUI';
 import VideoCall, { cleanupVideoCall } from './components/VideoCall';
 import Avatar from './components/Avatar';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import io from 'socket.io-client';
 
-function App() {
+function AppContent() {
+  const { user, token, isAuthenticated } = useAuth();
   const [socket, setSocket] = useState(null);
   const [currentPlayer, setCurrentPlayer] = useState(null);
   const [allPlayers, setAllPlayers] = useState([]);
@@ -34,6 +36,11 @@ function App() {
       setIsConnected(true);
       setConnectionStatus('connected');
       
+      // Authenticate socket if user is logged in
+      if (isAuthenticated && token) {
+        newSocket.emit('authenticate', token);
+      }
+      
       // If there's a pending join, execute it now
       if (pendingJoin) {
         console.log('Executing pending join:', pendingJoin);
@@ -41,6 +48,14 @@ function App() {
         setPendingJoin(null);
         setShowLanding(false);
       }
+    });
+
+    newSocket.on('authenticated', (data) => {
+      console.log('Socket authenticated:', data);
+    });
+
+    newSocket.on('authError', (data) => {
+      console.error('Socket authentication failed:', data);
     });
 
     newSocket.on('disconnect', () => {
@@ -169,7 +184,7 @@ function App() {
       // Clean up any video calls when component unmounts
       cleanupVideoCall();
     };
-  }, []);
+  }, [isAuthenticated, token, pendingJoin]);
 
   const handleJoinRoom = (roomId, playerName) => {
     console.log('handleJoinRoom called:', { roomId, playerName, isConnected });
@@ -349,7 +364,7 @@ function App() {
 
       {/* Collapsible Header */}
       {showHeader && (
-        <div className="fixed top-0 left-0 right-0 z-40 bg-black/80 backdrop-blur-md text-white shadow-2xl border-b border-white/10 transform transition-transform duration-300">
+        <div className="fixed top-0 left-0 right-0 z-40 glass-card text-white shadow-2xl border-b border-purple-500/20 transform transition-transform duration-300">
           <div className="px-6 py-4 flex justify-between items-center">
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
@@ -357,7 +372,7 @@ function App() {
                   <span className="text-white font-bold text-sm">S</span>
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                  <h1 className="text-lg font-bold gradient-text">
                     Social
                   </h1>
                   {currentRoom && (
@@ -365,58 +380,58 @@ function App() {
                   )}
                 </div>
               </div>
-              
-              {/* Connection Status */}
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${getConnectionStatusColor()} ${isConnected ? 'animate-pulse' : ''}`}></div>
-                <span className="text-sm text-gray-300 capitalize">{connectionStatus}</span>
-              </div>
-              
-              {/* Online Players Count */}
-              <div className="bg-white/10 rounded-full px-3 py-1">
-                <span className="text-sm text-gray-200">{allPlayers.length} online</span>
-              </div>
-
-              {/* Room Code Display */}
-              {currentRoom?.code && (
-                <div className="bg-purple-500/30 text-purple-200 rounded-full px-3 py-1">
-                  <span className="text-sm font-medium">Code: {currentRoom.code}</span>
-                </div>
-              )}
             </div>
+
+            {/* Connection Status */}
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${getConnectionStatusColor()} ${isConnected ? 'animate-pulse' : ''}`}></div>
+              <span className="text-sm text-gray-300 capitalize">{connectionStatus}</span>
+            </div>
+
+            {/* Online Players Count */}
+            <div className="bg-white/10 rounded-full px-3 py-1">
+              <span className="text-sm text-gray-200">{allPlayers.length} online</span>
+            </div>
+
+            {/* Room Code Display */}
+            {currentRoom?.code && (
+              <div className="bg-purple-500/30 text-purple-200 rounded-full px-3 py-1">
+                <span className="text-sm font-medium">Code: {currentRoom.code}</span>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex items-center space-x-3">
+            {currentPlayer && (
+              <div className="flex items-center space-x-2 bg-white/10 rounded-full px-4 py-2 shadow-sm">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">
+                    {currentPlayer.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <span className="text-sm font-medium text-gray-200">{currentPlayer.name}</span>
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+              </div>
+            )}
             
-            <div className="flex items-center space-x-3">
-              {currentPlayer && (
-                <div className="flex items-center space-x-2 bg-white/10 rounded-full px-4 py-2 shadow-sm">
-                  <Avatar 
-                    avatar={currentPlayer.avatar} 
-                    size={32} 
-                    name={currentPlayer.name}
-                  />
-                  <span className="text-sm font-medium text-gray-200">{currentPlayer.name}</span>
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                </div>
-              )}
-              
-              {/* Leave Room Button */}
-              <button
-                onClick={handleLeaveRoom}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-lg"
-              >
-                Leave Room
-              </button>
+            {/* Leave Room Button */}
+            <button
+              onClick={handleLeaveRoom}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-lg"
+            >
+              Leave Room
+            </button>
 
-              {/* Close Header Button */}
-              <button
-                onClick={() => setShowHeader(false)}
-                className="text-gray-400 hover:text-white p-1"
-                title="Hide Header (Esc)"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
-              </button>
-            </div>
+            {/* Close Header Button */}
+            <button
+              onClick={() => setShowHeader(false)}
+              className="text-gray-400 hover:text-white p-1"
+              title="Hide Header (Esc)"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
           </div>
         </div>
       )}
@@ -424,19 +439,19 @@ function App() {
       {/* Full Screen Game Canvas */}
       <div className="relative w-full h-screen">
         {currentPlayer ? (
-          <Game 
+          <Game
             currentPlayer={currentPlayer}
             allPlayers={allPlayers}
             onPlayerMove={handlePlayerMove}
             room={currentRoom}
           />
         ) : (
-          <div className="h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+          <div className="h-screen flex items-center justify-center animated-bg">
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-spin mx-auto mb-6 flex items-center justify-center">
-                <div className="w-16 h-16 bg-white rounded-full"></div>
+                <div className="w-16 h-16 bg-gray-900 rounded-full"></div>
               </div>
-              <h2 className="text-2xl font-semibold text-white mb-3">
+              <h2 className="text-2xl font-semibold text-gray-200 mb-3">
                 {pendingJoin ? 'Connecting...' : 'Joining Room...'}
               </h2>
               <p className="text-gray-300 text-lg">
@@ -452,7 +467,7 @@ function App() {
 
       {/* Enhanced Proximity UI */}
       {isInProximity && (
-        <ProximityUI 
+        <ProximityUI
           nearbyPlayers={nearbyPlayers}
           onVideoCall={handleVideoCallRequest}
           onSendMessage={handleSendProximityMessage}
@@ -465,7 +480,7 @@ function App() {
       {/* Video Call Request Modal */}
       {incomingVideoCall && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200">
+          <div className="glass-card rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
             <div className="text-center">
               <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full mx-auto mb-4 flex items-center justify-center">
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -473,30 +488,30 @@ function App() {
                 </svg>
               </div>
               
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
+              <h3 className="text-xl font-bold text-gray-200 mb-2">
                 Incoming Video Call
               </h3>
               
-              <p className="text-gray-600 mb-6">
-                <span className="font-semibold text-purple-600">{incomingVideoCall.fromPlayer.name}</span> wants to start a video call with you.
+              <p className="text-gray-300 mb-6">
+                <span className="font-semibold text-purple-400">{incomingVideoCall.fromPlayer.name}</span> wants to start a video call with you.
               </p>
               
               <div className="flex space-x-3">
                 <button
                   onClick={handleAcceptVideoCall}
-                  className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                  className="flex-1 btn-primary py-3 px-6"
                 >
                   Accept
                 </button>
                 <button
                   onClick={handleRejectVideoCall}
-                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 px-6 rounded-lg font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
                   Decline
                 </button>
               </div>
               
-              <p className="text-xs text-gray-500 mt-4">
+              <p className="text-xs text-gray-400 mt-4">
                 This will open a video call window
               </p>
             </div>
@@ -531,7 +546,7 @@ function App() {
       )}
 
       {/* Floating Instructions */}
-      <div className="fixed bottom-6 left-6 bg-black/80 backdrop-blur-sm text-white p-4 rounded-xl text-sm max-w-xs shadow-2xl">
+      <div className="fixed bottom-6 left-6 glass-card text-white p-4 rounded-xl text-sm max-w-xs shadow-2xl">
         <div className="flex items-center space-x-2 mb-3">
           <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
             <span className="text-xs">?</span>
@@ -560,7 +575,7 @@ function App() {
 
       {/* Floating room info when header is hidden */}
       {!showHeader && currentRoom && (
-        <div className="fixed top-4 right-4 bg-black/60 backdrop-blur-sm text-white p-3 rounded-lg text-sm">
+        <div className="fixed top-4 right-4 glass-card text-white p-3 rounded-lg text-sm">
           <div className="flex items-center space-x-2">
             <span className="font-medium">{currentRoom.name}</span>
             {currentRoom.code && (
@@ -573,6 +588,14 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

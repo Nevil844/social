@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import UserProfile from './UserProfile';
 
 const Landing = ({ onJoinRoom }) => {
+  const { user, login, isAuthenticated, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('join');
   const [publicRooms, setPublicRooms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [roomCode, setRoomCode] = useState('');
   const [playerName, setPlayerName] = useState('');
+  const [showProfile, setShowProfile] = useState(false);
   const [createRoomData, setCreateRoomData] = useState({
     name: '',
     isPrivate: false,
@@ -20,7 +24,7 @@ const Landing = ({ onJoinRoom }) => {
       name: 'Modern Office',
       description: 'A sleek modern office environment',
       preview: '🏢',
-      color: 'from-blue-500 to-indigo-600'
+      color: 'from-purple-500 to-indigo-600'
     },
     {
       id: 'park',
@@ -58,6 +62,22 @@ const Landing = ({ onJoinRoom }) => {
       color: 'from-gray-500 to-slate-600'
     }
   ];
+
+  useEffect(() => {
+    if (user && user.name) {
+      setPlayerName(user.name);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user && user.preferences) {
+      setCreateRoomData(prev => ({
+        ...prev,
+        maxPlayers: user.preferences.defaultMaxPlayers || 20,
+        mapType: user.preferences.defaultMap || 'office'
+      }));
+    }
+  }, [user]);
 
   useEffect(() => {
     fetchPublicRooms();
@@ -155,7 +175,7 @@ const Landing = ({ onJoinRoom }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-50 to-indigo-100 p-4 overflow-y-auto">
+    <div className="min-h-screen animated-bg p-4 overflow-y-auto">
       {/* Background Animation */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         {[...Array(30)].map((_, i) => (
@@ -179,14 +199,45 @@ const Landing = ({ onJoinRoom }) => {
             <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
               <span className="text-white font-bold text-xl sm:text-2xl">S</span>
             </div>
-            <h1 className="text-3xl sm:text-5xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-5xl font-bold gradient-text">
               Social
             </h1>
           </div>
-          <p className="text-gray-600 text-sm sm:text-lg px-4">Connect, collaborate, and chat in beautiful virtual spaces</p>
+          <p className="text-gray-300 text-sm sm:text-lg px-4">Connect, collaborate, and chat in beautiful virtual spaces</p>
+          
+          {/* Authentication Section */}
+          <div className="mt-6 flex justify-center items-center space-x-4">
+            {authLoading ? (
+              <div className="text-gray-400">Loading...</div>
+            ) : isAuthenticated ? (
+              <div className="flex items-center space-x-3">
+                {user?.picture && (
+                  <img
+                    src={user.picture}
+                    alt={user.name}
+                    className="w-8 h-8 rounded-full"
+                  />
+                )}
+                <span className="text-gray-200 font-medium">{user?.name}</span>
+                <button
+                  onClick={() => setShowProfile(true)}
+                  className="px-4 py-2 bg-purple-600/20 text-purple-300 rounded-lg hover:bg-purple-600/30 transition-colors border border-purple-500/30"
+                >
+                  Profile
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={login}
+                className="btn-primary px-6 py-3"
+              >
+                Sign in with Google
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="bg-white/80 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
+        <div className="glass-card rounded-3xl shadow-2xl border border-purple-500/20 overflow-hidden">
           {/* Player Name Input */}
           <div className="p-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white">
             <div className="max-w-md mx-auto">
@@ -202,7 +253,7 @@ const Landing = ({ onJoinRoom }) => {
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-gray-200">
+          <div className="flex border-b border-purple-500/20">
             {[
               { id: 'join', label: 'Join Room', icon: '🚪' },
               { id: 'create', label: 'Create Room', icon: '➕' }
@@ -212,8 +263,8 @@ const Landing = ({ onJoinRoom }) => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex-1 px-4 sm:px-6 py-3 sm:py-4 font-medium transition-all text-sm sm:text-base ${
                   activeTab === tab.id
-                    ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                    ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-500/10'
+                    : 'text-gray-300 hover:text-gray-100 hover:bg-purple-500/5'
                 }`}
               >
                 <span className="mr-1 sm:mr-2">{tab.icon}</span>
@@ -227,8 +278,8 @@ const Landing = ({ onJoinRoom }) => {
             {activeTab === 'join' && (
               <div className="space-y-6">
                 {/* Join by Code */}
-                <div className="bg-gray-50 rounded-2xl p-4 sm:p-6">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center">
+                <div className="card-dark rounded-2xl p-4 sm:p-6">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center text-gray-200">
                     <span className="mr-2">🔐</span>
                     Join Private Room
                   </h3>
@@ -238,13 +289,13 @@ const Landing = ({ onJoinRoom }) => {
                       value={roomCode}
                       onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
                       placeholder="Enter room code..."
-                      className="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="flex-1 input-dark rounded-xl"
                       maxLength={6}
                     />
                     <button
                       onClick={handleJoinByCode}
                       disabled={loading || !roomCode.trim() || !playerName.trim()}
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-300 disabled:to-gray-300 text-white px-6 py-3 rounded-xl font-medium transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed"
+                      className="btn-primary px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {loading ? 'Joining...' : 'Join'}
                     </button>
@@ -253,13 +304,13 @@ const Landing = ({ onJoinRoom }) => {
 
                 {/* Public Rooms */}
                 <div>
-                  <h3 className="text-lg font-semibold mb-4 flex items-center">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center text-gray-200">
                     <span className="mr-2">🌐</span>
                     Public Rooms
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {publicRooms.length === 0 ? (
-                      <div className="col-span-full text-center py-8 text-gray-500">
+                      <div className="col-span-full text-center py-8 text-gray-400">
                         <div className="text-4xl mb-2">🏠</div>
                         <p>No public rooms available</p>
                         <p className="text-sm">Create the first one!</p>
@@ -268,13 +319,13 @@ const Landing = ({ onJoinRoom }) => {
                       publicRooms.map(room => {
                         const mapInfo = mapTypes.find(m => m.id === room.mapType) || mapTypes[0];
                         return (
-                          <div key={room.id} className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow border border-gray-200">
+                          <div key={room.id} className="card-dark rounded-xl shadow-md hover:shadow-lg transition-shadow">
                             <div className={`h-24 bg-gradient-to-r ${mapInfo.color} rounded-t-xl flex items-center justify-center text-4xl`}>
                               {mapInfo.preview}
                             </div>
                             <div className="p-4">
-                              <h4 className="font-semibold text-gray-800 mb-1">{room.name}</h4>
-                              <p className="text-sm text-gray-600 mb-2">{mapInfo.name}</p>
+                              <h4 className="font-semibold text-gray-200 mb-1">{room.name}</h4>
+                              <p className="text-sm text-gray-400 mb-2">{mapInfo.name}</p>
                               <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
                                 <span>{room.playerCount}/{room.maxPlayers} players</span>
                                 <span>{new Date(room.createdAt).toLocaleDateString()}</span>
@@ -282,7 +333,7 @@ const Landing = ({ onJoinRoom }) => {
                               <button
                                 onClick={() => handleJoinPublicRoom(room.id)}
                                 disabled={!playerName.trim()}
-                                className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 disabled:from-gray-300 disabled:to-gray-300 text-white py-2 rounded-lg font-medium transition-all duration-200 hover:shadow-md disabled:cursor-not-allowed"
+                                className="w-full btn-primary py-2 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Join Room
                               </button>
@@ -300,15 +351,15 @@ const Landing = ({ onJoinRoom }) => {
               <div className="space-y-4 sm:space-y-6 max-w-2xl mx-auto">
                 {/* Room Code Display */}
                 {createdRoomCode && (
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4 sm:p-6 text-center">
+                  <div className="card-dark border border-green-500/30 rounded-2xl p-4 sm:p-6 text-center">
                     <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full mx-auto mb-4 flex items-center justify-center">
                       <span className="text-white text-xl sm:text-2xl">🎉</span>
                     </div>
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Room Created Successfully!</h3>
-                    <p className="text-gray-600 mb-4 text-sm sm:text-base">Share this code with others to invite them to your private room:</p>
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-200 mb-2">Room Created Successfully!</h3>
+                    <p className="text-gray-400 mb-4 text-sm sm:text-base">Share this code with others to invite them to your private room:</p>
                     
-                    <div className="bg-white rounded-xl p-4 border-2 border-green-300 mb-4">
-                      <div className="text-xl sm:text-2xl font-bold text-green-600 tracking-wider">{createdRoomCode}</div>
+                    <div className="bg-gray-800/50 rounded-xl p-4 border-2 border-green-500/30 mb-4">
+                      <div className="text-xl sm:text-2xl font-bold text-green-400 tracking-wider">{createdRoomCode}</div>
                       <p className="text-sm text-gray-500 mt-1">Room Code</p>
                     </div>
                     
@@ -318,7 +369,7 @@ const Landing = ({ onJoinRoom }) => {
                           navigator.clipboard.writeText(createdRoomCode);
                           alert('Room code copied to clipboard!');
                         }}
-                        className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white py-3 px-6 rounded-lg font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+                        className="flex-1 btn-primary py-3 px-6"
                       >
                         📋 Copy Code
                       </button>
@@ -332,7 +383,7 @@ const Landing = ({ onJoinRoom }) => {
                     
                     <button
                       onClick={() => setCreatedRoomCode(null)}
-                      className="text-gray-500 hover:text-gray-700 text-sm mt-4 underline"
+                      className="text-gray-400 hover:text-gray-300 text-sm mt-4 underline"
                     >
                       Create Another Room
                     </button>
@@ -343,23 +394,23 @@ const Landing = ({ onJoinRoom }) => {
                 {!createdRoomCode && (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Room Name</label>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Room Name</label>
                       <input
                         type="text"
                         value={createRoomData.name}
                         onChange={(e) => setCreateRoomData(prev => ({ ...prev, name: e.target.value }))}
                         placeholder="Enter room name..."
-                        className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full input-dark rounded-xl"
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Privacy</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Privacy</label>
                         <select
                           value={createRoomData.isPrivate ? 'private' : 'public'}
                           onChange={(e) => setCreateRoomData(prev => ({ ...prev, isPrivate: e.target.value === 'private' }))}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          className="w-full input-dark rounded-xl"
                         >
                           <option value="public">Public</option>
                           <option value="private">Private</option>
@@ -367,11 +418,11 @@ const Landing = ({ onJoinRoom }) => {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Max Players</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Max Players</label>
                         <select
                           value={createRoomData.maxPlayers}
                           onChange={(e) => setCreateRoomData(prev => ({ ...prev, maxPlayers: parseInt(e.target.value) }))}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          className="w-full input-dark rounded-xl"
                         >
                           <option value={10}>10 players</option>
                           <option value={20}>20 players</option>
@@ -383,7 +434,7 @@ const Landing = ({ onJoinRoom }) => {
 
                     {/* Map Selection */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-4">Choose Map</label>
+                      <label className="block text-sm font-medium text-gray-300 mb-4">Choose Map</label>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                         {mapTypes.map(map => (
                           <button
@@ -391,15 +442,15 @@ const Landing = ({ onJoinRoom }) => {
                             onClick={() => setCreateRoomData(prev => ({ ...prev, mapType: map.id }))}
                             className={`p-3 sm:p-4 rounded-xl border-2 transition-all hover:shadow-md ${
                               createRoomData.mapType === map.id
-                                ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-200'
-                                : 'border-gray-200 hover:border-gray-300'
+                                ? 'border-purple-500 bg-purple-500/20 ring-2 ring-purple-500/30'
+                                : 'border-gray-600 hover:border-gray-500'
                             }`}
                           >
                             <div className={`h-12 sm:h-16 bg-gradient-to-r ${map.color} rounded-lg flex items-center justify-center text-xl sm:text-2xl mb-2`}>
                               {map.preview}
                             </div>
-                            <h4 className="font-medium text-xs sm:text-sm text-gray-800">{map.name}</h4>
-                            <p className="text-xs text-gray-600 mt-1 hidden sm:block">{map.description}</p>
+                            <h4 className="font-medium text-xs sm:text-sm text-gray-200">{map.name}</h4>
+                            <p className="text-xs text-gray-400 mt-1 hidden sm:block">{map.description}</p>
                           </button>
                         ))}
                       </div>
@@ -408,7 +459,7 @@ const Landing = ({ onJoinRoom }) => {
                     <button
                       onClick={handleCreateRoom}
                       disabled={loading || !createRoomData.name.trim() || !playerName.trim()}
-                      className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-300 disabled:to-gray-300 text-white py-3 sm:py-4 rounded-xl font-medium text-base sm:text-lg transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed"
+                      className="w-full btn-primary py-3 sm:py-4 text-base sm:text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {loading ? 'Creating Room...' : 'Create & Join Room'}
                     </button>
@@ -420,10 +471,13 @@ const Landing = ({ onJoinRoom }) => {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-8 text-gray-600">
+        <div className="text-center mt-8 text-gray-400">
           <p className="text-sm">Built with React, Phaser.js, and Socket.IO</p>
         </div>
       </div>
+
+      {/* User Profile Modal */}
+      <UserProfile isOpen={showProfile} onClose={() => setShowProfile(false)} />
     </div>
   );
 };

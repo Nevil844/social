@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import DailyIframe from '@daily-co/daily-js';
+import { useAuth } from '../contexts/AuthContext';
 
 // Singleton pattern for DailyIframe
 class DailyIframeSingleton {
@@ -73,15 +74,51 @@ export const cleanupVideoCall = () => {
 };
 
 const VideoCall = ({ roomUrl, roomName, isDemo = false, onClose }) => {
+  const { user, isAuthenticated, getVideoCallLimits } = useAuth();
   const callFrameRef = useRef();
   const [isJoined, setIsJoined] = useState(false);
   const [participants, setParticipants] = useState({});
   const [isConnecting, setIsConnecting] = useState(true);
   const [error, setError] = useState(null);
+  const [limits, setLimits] = useState(null);
+
+  useEffect(() => {
+    // Load video call limits for authenticated users
+    if (isAuthenticated) {
+      loadVideoCallLimits();
+    }
+  }, [isAuthenticated]);
+
+  const loadVideoCallLimits = async () => {
+    const limitsData = await getVideoCallLimits();
+    setLimits(limitsData);
+  };
 
   useEffect(() => {
     const createCallFrame = async () => {
       try {
+        // Check if user is authenticated
+        if (!isAuthenticated) {
+          setError('Authentication required');
+          setIsConnecting(false);
+          setTimeout(() => {
+            alert('Please sign in with Google to use video calls.');
+            onClose();
+          }, 1000);
+          return;
+        }
+
+        // Check video call limits for authenticated users
+        if (limits && !limits.canMakeCall) {
+          setError('Video call limit exceeded');
+          setIsConnecting(false);
+          setTimeout(() => {
+            alert(`You've reached your daily video call limit (${limits.videoCallLimit} minutes). Premium features coming soon!`);
+            onClose();
+          }, 1000);
+          return;
+        }
+
         // For demo mode, we'll use a simple Daily.co room URL
         // For real mode, we'll use the provided roomUrl
         const demoRoomUrl = `https://social.daily.co/demo-${Date.now()}`;
@@ -112,6 +149,11 @@ const VideoCall = ({ roomUrl, roomName, isDemo = false, onClose }) => {
           setIsJoined(true);
           setIsConnecting(false);
           setError(null);
+          
+          // Update limits after successful join
+          if (isAuthenticated) {
+            loadVideoCallLimits();
+          }
         });
 
         frame.on('left-meeting', () => {
@@ -171,7 +213,7 @@ const VideoCall = ({ roomUrl, roomName, isDemo = false, onClose }) => {
     return () => {
       // Component cleanup - don't destroy here, let the next instance handle it
     };
-  }, [roomUrl, isDemo, onClose]);
+  }, [roomUrl, isDemo, onClose, isAuthenticated, limits]);
 
   const handleLeave = () => {
     cleanupVideoCall();
@@ -179,107 +221,102 @@ const VideoCall = ({ roomUrl, roomName, isDemo = false, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white/95 backdrop-blur-lg rounded-3xl shadow-2xl w-full max-w-6xl h-full max-h-5xl flex flex-col overflow-hidden border border-white/20">
-        {/* Enhanced Header */}
-        <div className="flex items-center justify-between p-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white">
-          <div className="flex items-center space-x-4">
-            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose}></div>
+      
+      {/* Video Call Container */}
+      <div className="relative glass-card rounded-2xl w-full max-w-6xl h-[80vh] shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-purple-500/20">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
               </svg>
             </div>
             <div>
-              <h3 className="text-xl font-bold">Video Call</h3>
-              <p className="text-purple-100 text-sm">
-                {isConnecting ? 'Connecting...' : isJoined ? `${Object.keys(participants).length + 1} participant(s)` : 'Setting up...'}
-                {roomName && ` • ${roomName}`}
-                {isDemo && ' (Demo Mode)'}
+              <h3 className="text-lg font-semibold gradient-text">Video Call</h3>
+              <p className="text-sm text-gray-400">
+                {isDemo ? 'Demo Mode' : 'Live Call'} • {Object.keys(participants).length} participants
               </p>
             </div>
           </div>
+          
           <button
             onClick={handleLeave}
-            className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl transition-all duration-200 hover:shadow-lg hover:scale-105 font-medium flex items-center space-x-2"
+            className="px-4 py-2 bg-red-600/20 text-red-300 rounded-lg hover:bg-red-600/30 transition-colors border border-red-500/30 text-sm"
           >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 6.707 6.293a1 1 0 00-1.414 1.414L8.586 11l-3.293 3.293a1 1 0 001.414 1.414L10 12.414l3.293 3.293a1 1 0 001.414-1.414L11.414 11l3.293-3.293z" clipRule="evenodd" />
-            </svg>
-            <span>Leave Call</span>
+            Leave Call
           </button>
         </div>
 
-        {/* Video Container */}
-        <div className="flex-1 p-6 bg-gradient-to-br from-gray-50 to-gray-100">
+        {/* Video Content */}
+        <div className="flex-1 relative">
+          {isConnecting && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm z-10">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mx-auto mb-4 flex items-center justify-center animate-spin">
+                  <div className="w-12 h-12 bg-gray-900 rounded-full"></div>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-200 mb-2">Connecting...</h3>
+                <p className="text-gray-400">Joining video call room</p>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm z-10">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-full mx-auto mb-4 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-200 mb-2">Connection Error</h3>
+                <p className="text-gray-400 mb-4">{error}</p>
+                <button
+                  onClick={onClose}
+                  className="btn-primary px-6 py-2"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Daily.co iframe */}
           <div 
             ref={callFrameRef} 
-            className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl shadow-inner flex items-center justify-center overflow-hidden"
-          >
-            {isConnecting && (
-              <div className="text-center text-white">
-                <div className="relative mb-6">
-                  <div className="w-20 h-20 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse mx-auto flex items-center justify-center">
-                    <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-                    </svg>
-                  </div>
-                  <div className="absolute inset-0 w-20 h-20 bg-purple-400 rounded-full animate-ping mx-auto opacity-30"></div>
-                </div>
-                <h3 className="text-xl font-semibold mb-2">Connecting to video call...</h3>
-                <p className="text-gray-300 mb-4">Setting up your camera and microphone</p>
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 max-w-md mx-auto">
-                  {isDemo ? (
-                    <>
-                      <p className="text-sm text-gray-200">
-                        💡 This is a demo video call setup.
-                      </p>
-                      <p className="text-xs text-gray-300 mt-2">
-                        In production, this would use your Daily.co API key for full functionality.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm text-gray-200">
-                        ✅ Connected to Daily.co video service.
-                      </p>
-                      <p className="text-xs text-gray-300 mt-2">
-                        Room: {roomName || 'Unknown'}
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+            className="w-full h-full"
+            style={{ minHeight: '400px' }}
+          />
         </div>
 
-        {/* Enhanced Status Footer */}
-        <div className="px-6 py-4 bg-white/80 backdrop-blur-sm border-t border-gray-200/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
-                isJoined ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-              }`}>
-                <div className={`w-2 h-2 rounded-full ${
-                  isJoined ? 'bg-green-500 animate-pulse' : 'bg-yellow-500 animate-pulse'
-                }`}></div>
-                <span className="text-sm font-medium">
-                  {isJoined 
-                    ? `Connected • ${Object.keys(participants).length + 1} participant(s)`
-                    : isConnecting ? 'Connecting...' : 'Setting up...'
-                  }
+        {/* Footer with limits info */}
+        {isAuthenticated && limits && (
+          <div className="p-4 border-t border-purple-500/20 bg-gray-900/30">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center space-x-4">
+                <span className="text-gray-400">Daily Usage:</span>
+                <span className="text-purple-400 font-medium">
+                  {limits.videoCallMinutes}/{limits.videoCallLimit} minutes
                 </span>
+                <div className="w-24 bg-gray-700 rounded-full h-2">
+                  <div 
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(limits.videoCallMinutes / limits.videoCallLimit) * 100}%` }}
+                  ></div>
+                </div>
               </div>
-            </div>
-            
-            <div className="flex items-center space-x-2 text-xs text-gray-500">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-              <span>End-to-end encrypted</span>
+              {isDemo && (
+                <span className="text-yellow-400 text-xs font-medium">
+                  Demo Mode
+                </span>
+              )}
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

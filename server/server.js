@@ -8,6 +8,12 @@ const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fetch = require('node-fetch');
+const session = require('express-session');
+const cookieParser = require('cookie-parser');
+
+// Import authentication and user management
+const { passport, generateToken, isAuthenticated, checkVideoCallLimit } = require('./auth');
+const userManager = require('./users');
 
 // Daily.co API configuration
 const DAILY_API_KEY = process.env.DAILY_API_KEY;
@@ -16,6 +22,11 @@ const DAILY_API_URL = 'https://api.daily.co/v1';
 // Validate Daily.co API key
 if (!DAILY_API_KEY) {
   console.warn('⚠️  DAILY_API_KEY not found. Video calls will use demo mode.');
+}
+
+// Validate Google OAuth credentials
+if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  console.warn('⚠️  Google OAuth credentials not found. Authentication will be disabled.');
 }
 
 // Daily.co API helper functions
@@ -128,14 +139,32 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: process.env.NODE_ENV === 'production' ? false : "http://localhost:5173",
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? false : "http://localhost:5173"
+  origin: process.env.NODE_ENV === 'production' ? false : "http://localhost:5173",
+  credentials: true
 }));
 app.use(express.json());
+app.use(cookieParser());
+
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-super-secret-session-key-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Serve static files from React build
 if (process.env.NODE_ENV === 'production') {
@@ -145,6 +174,7 @@ if (process.env.NODE_ENV === 'production') {
 // Store rooms and players
 const rooms = new Map();
 const players = new Map();
+const socketToUser = new Map(); // Map socket IDs to user IDs
 
 // Generate random player names
 const adjectives = ['Happy', 'Brave', 'Swift', 'Clever', 'Gentle', 'Mighty', 'Cosmic', 'Golden', 'Silver', 'Crimson'];
@@ -238,6 +268,63 @@ function createRoom(name, isPrivate, maxPlayers, mapType, creatorId) {
   return room;
 }
 
+// Authentication Routes
+app.get('/auth/google', passport.authenticate('google', { 
+  scope: ['profile', 'email'] 
+}));
+
+app.get('/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  (req, res) => {
+    // Generate JWT token
+    const token = generateToken(req.user);
+    
+    // Redirect to frontend with token
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/auth-callback?token=${token}`);
+  }
+);
+
+app.get('/auth/logout', (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      return res.status(500).json({ error: 'Logout failed' });
+    }
+    res.json({ success: true });
+  });
+});
+
+// User API Routes
+app.get('/api/user/profile', isAuthenticated, (req, res) => {
+  const user = userManager.getUser(req.user.id);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
+  res.json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    picture: user.picture,
+    videoCallMinutes: user.videoCallMinutes,
+    videoCallLimit: user.videoCallLimit,
+    remainingVideoCallMinutes: userManager.getRemainingVideoCallMinutes(user.id),
+    preferences: user.preferences,
+    createdAt: user.createdAt,
+    lastLogin: user.lastLogin
+  });
+});
+
+app.put('/api/user/preferences', isAuthenticated, (req, res) => {
+  const { preferences } = req.body;
+  const success = userManager.updatePreferences(req.user.id, preferences);
+  
+  if (success) {
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ error: 'Failed to update preferences' });
+  }
+});
+
 // API Routes
 app.get('/api/rooms', (req, res) => {
   const publicRooms = Array.from(rooms.values())
@@ -291,7 +378,7 @@ app.get('/api/rooms/:code', (req, res) => {
 });
 
 // Video Call API Routes
-app.post('/api/video-calls/create', async (req, res) => {
+app.post('/api/video-calls/create', isAuthenticated, checkVideoCallLimit, async (req, res) => {
   try {
     const { roomName, maxParticipants } = req.body;
     
@@ -301,9 +388,14 @@ app.post('/api/video-calls/create', async (req, res) => {
 
     const dailyRoom = await createDailyRoom(roomName, maxParticipants || 10);
     
+    // Increment video call minutes for the user (1 minute per call)
+    const newMinutes = userManager.incrementVideoCallMinutes(req.user.id, 1);
+    
     res.json({
       success: true,
-      room: dailyRoom
+      room: dailyRoom,
+      videoCallMinutes: newMinutes,
+      remainingMinutes: userManager.getRemainingVideoCallMinutes(req.user.id)
     });
   } catch (error) {
     console.error('Error creating video call:', error);
@@ -314,7 +406,7 @@ app.post('/api/video-calls/create', async (req, res) => {
   }
 });
 
-app.delete('/api/video-calls/:roomName', async (req, res) => {
+app.delete('/api/video-calls/:roomName', isAuthenticated, async (req, res) => {
   try {
     const { roomName } = req.params;
     await deleteDailyRoom(roomName);
@@ -328,6 +420,20 @@ app.delete('/api/video-calls/:roomName', async (req, res) => {
   }
 });
 
+app.get('/api/video-calls/limits', isAuthenticated, (req, res) => {
+  const user = userManager.getUser(req.user.id);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
+  res.json({
+    videoCallMinutes: user.videoCallMinutes,
+    videoCallLimit: user.videoCallLimit,
+    remainingMinutes: userManager.getRemainingVideoCallMinutes(user.id),
+    canMakeCall: userManager.canMakeVideoCall(user.id)
+  });
+});
+
 // Catch-all handler for React app (serve index.html for non-API routes)
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
@@ -337,6 +443,34 @@ if (process.env.NODE_ENV === 'production') {
 
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
+
+  // Handle authentication for socket connections
+  socket.on('authenticate', (token) => {
+    try {
+      const { verifyToken } = require('./auth');
+      const decoded = verifyToken(token);
+      if (decoded) {
+        const user = userManager.getUser(decoded.id);
+        if (user) {
+          socketToUser.set(socket.id, user.id);
+          socket.user = user;
+          socket.emit('authenticated', { 
+            user: {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              picture: user.picture,
+              remainingVideoCallMinutes: userManager.getRemainingVideoCallMinutes(user.id)
+            }
+          });
+          console.log(`User ${user.name} (${user.email}) authenticated via socket`);
+        }
+      }
+    } catch (error) {
+      console.error('Socket authentication error:', error);
+      socket.emit('authError', { message: 'Authentication failed' });
+    }
+  });
 
   socket.on('joinRoom', (data) => {
     const { roomId, playerName } = data;
@@ -357,10 +491,17 @@ io.on('connection', (socket) => {
     const name = playerName || generatePlayerName();
     const avatar = getRandomAvatar();
     
+    // Use authenticated user info if available
+    const userId = socketToUser.get(socket.id);
+    const user = userId ? userManager.getUser(userId) : null;
+    
     const newPlayer = {
       id: playerId,
       socketId: socket.id,
-      name: name,
+      userId: userId, // Link to authenticated user
+      name: user ? user.name : name,
+      email: user ? user.email : null,
+      picture: user ? user.picture : null,
       avatar: avatar,
       x: Math.random() * 800 + 100, // Random spawn position
       y: Math.random() * 600 + 100,
@@ -457,10 +598,30 @@ io.on('connection', (socket) => {
         const targetPlayer = [...room.players.values()].find(p => p.id === data.targetPlayerId);
         if (targetPlayer) {
           try {
+            // Check if user can make video calls
+            if (player.userId) {
+              const canMakeCall = userManager.canMakeVideoCall(player.userId);
+              if (!canMakeCall) {
+                const remaining = userManager.getRemainingVideoCalls(player.userId);
+                socket.emit('videoCallError', {
+                  message: 'Video call limit exceeded',
+                  remaining,
+                  limit: userManager.getUser(player.userId)?.videoCallLimit || 10
+                });
+                return;
+              }
+            }
+
             // Create a cleaner Daily.co room name
             const timestamp = Date.now();
             const roomName = `social-${timestamp}-${Math.random().toString(36).substring(2, 8)}`;
             const dailyRoom = await createDailyRoom(roomName, 2);
+            
+            // Increment video call minutes for authenticated users
+            if (player.userId) {
+              const newMinutes = userManager.incrementVideoCallMinutes(player.userId, 1);
+              console.log(`User ${player.name} made video call #${newMinutes} minutes used`);
+            }
             
             const targetSocket = [...room.players.entries()].find(([_, p]) => p.id === targetPlayer.id)?.[0];
             if (targetSocket) {
@@ -577,10 +738,23 @@ io.on('connection', (socket) => {
       }
       players.delete(socket.id);
     }
+    
+    // Clean up user mapping
+    socketToUser.delete(socket.id);
   });
 });
 
 const PORT = process.env.PORT || 3001;
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n🛑 Shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 }); 
