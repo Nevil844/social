@@ -84,7 +84,7 @@ const VideoCall = ({ roomUrl, roomName, isDemo = false, onClose }) => {
       try {
         // For demo mode, we'll use a simple Daily.co room URL
         // For real mode, we'll use the provided roomUrl
-        const demoRoomUrl = `https://gather-clone.daily.co/demo-${Date.now()}`;
+        const demoRoomUrl = `https://social.daily.co/demo-${Date.now()}`;
         const finalRoomUrl = isDemo ? demoRoomUrl : roomUrl;
         
         if (!finalRoomUrl) {

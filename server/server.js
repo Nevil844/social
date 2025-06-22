@@ -382,7 +382,8 @@ io.on('connection', (socket) => {
         id: room.id,
         name: room.name,
         mapType: room.mapType,
-        playerCount: room.players.size
+        playerCount: room.players.size,
+        code: room.code
       },
       allPlayers: Array.from(room.players.values())
     });
@@ -394,7 +395,8 @@ io.on('connection', (socket) => {
         id: room.id,
         name: room.name,
         mapType: room.mapType,
-        playerCount: room.players.size
+        playerCount: room.players.size,
+        code: room.code
       },
       allPlayers: Array.from(room.players.values())
     });
@@ -457,7 +459,7 @@ io.on('connection', (socket) => {
           try {
             // Create a cleaner Daily.co room name
             const timestamp = Date.now();
-            const roomName = `gather-${timestamp}-${Math.random().toString(36).substring(2, 8)}`;
+            const roomName = `social-${timestamp}-${Math.random().toString(36).substring(2, 8)}`;
             const dailyRoom = await createDailyRoom(roomName, 2);
             
             const targetSocket = [...room.players.entries()].find(([_, p]) => p.id === targetPlayer.id)?.[0];

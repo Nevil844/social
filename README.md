@@ -1,8 +1,8 @@
-# 🎮 Gather Clone - Multiplayer Virtual Workspace
+# 🎮 Social - Multiplayer Virtual Workspace
 
 A modern, feature-rich multiplayer virtual workspace inspired by Gather Town, built with React, Node.js, and WebRTC.
 
-![Gather Clone](https://img.shields.io/badge/Status-Active-green)
+![Social](https://img.shields.io/badge/Status-Active-green)
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
@@ -40,7 +40,7 @@ A modern, feature-rich multiplayer virtual workspace inspired by Gather Town, bu
 ```bash
 # Clone the repository
 git clone <your-repo-url>
-cd gather-clone
+cd social
 
 # Build and run with Docker Compose
 docker-compose up --build
@@ -68,7 +68,7 @@ This starts:
 ## 📁 Project Structure
 
 ```
-gather-clone/
+social/
 ├── client/                 # React frontend
 │   ├── src/
 │   │   ├── components/
@@ -162,7 +162,7 @@ docker-compose up --build
 docker-compose up -d
 
 # View logs
-docker logs gather-clone-gather-clone-1 -f
+docker logs social-social-1 -f
 
 # Stop containers
 docker-compose down
@@ -182,10 +182,10 @@ docker-compose --profile dev up
 ### Manual Deployment
 ```bash
 # Build Docker image
-docker build -t gather-clone .
+docker build -t social .
 
 # Run in production
-docker run -p 3001:3001 -e NODE_ENV=production gather-clone
+docker run -p 3001:3001 -e NODE_ENV=production social
 ```
 
 ## 🎯 Technical Stack
