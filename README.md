@@ -127,6 +127,31 @@ PORT=3001
 DAILY_API_KEY=your_daily_api_key_here
 ```
 
+### 🎥 Video Call Setup
+
+To enable video calls, you need a Daily.co API key:
+
+1. **Get API Key**: Visit [Daily.co Dashboard](https://dashboard.daily.co/developers)
+2. **Create Account**: Sign up for a free Daily.co account
+3. **Generate Key**: Create a new API key in the developers section
+4. **Add to .env**: Place your API key in the server `.env` file
+
+**Note**: Without the API key, video calls will run in demo mode with limited functionality.
+
+### 🔧 API Key Configuration
+
+The Daily.co API key enables:
+- ✅ Real video call rooms
+- ✅ Automatic room cleanup
+- ✅ Participant management
+- ✅ Recording capabilities (optional)
+- ✅ Advanced room settings
+
+**Demo Mode** (no API key):
+- ⚠️ Limited functionality
+- ⚠️ Demo room URLs
+- ⚠️ No room cleanup
+
 ## 🐳 Docker Commands
 
 ```bash

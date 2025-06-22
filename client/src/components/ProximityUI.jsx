@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Avatar from './Avatar';
 
-const ProximityUI = ({ nearbyPlayers, onVideoCall, onSendMessage, messages, currentPlayer }) => {
+const ProximityUI = ({ nearbyPlayers, onVideoCall, onSendMessage, messages, currentPlayer, isVideoCallRequesting = false }) => {
   const [showChat, setShowChat] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
   const messagesEndRef = useRef(null);
@@ -65,12 +65,23 @@ const ProximityUI = ({ nearbyPlayers, onVideoCall, onSendMessage, messages, curr
                 </div>
                 <button
                   onClick={() => handleVideoCall(player.id)}
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white p-2 rounded-lg transition-all duration-200 hover:shadow-lg hover:scale-105 group"
-                  title="Start video call"
+                  disabled={isVideoCallRequesting}
+                  className={`${
+                    isVideoCallRequesting 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 hover:scale-105'
+                  } text-white p-2 rounded-lg transition-all duration-200 hover:shadow-lg group`}
+                  title={isVideoCallRequesting ? "Video call request in progress..." : "Start video call"}
                 >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-                  </svg>
+                  {isVideoCallRequesting ? (
+                    <svg className="w-4 h-4 animate-spin" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                    </svg>
+                  )}
                 </button>
               </div>
             </div>

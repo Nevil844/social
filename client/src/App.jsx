@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Landing from './components/Landing';
 import Game from './components/Game';
 import ProximityUI from './components/ProximityUI';
-import VideoCall from './components/VideoCall';
+import VideoCall, { cleanupVideoCall } from './components/VideoCall';
 import Avatar from './components/Avatar';
 import io from 'socket.io-client';
 
@@ -21,6 +21,9 @@ function App() {
   const [showLanding, setShowLanding] = useState(true);
   const [pendingJoin, setPendingJoin] = useState(null);
   const [showHeader, setShowHeader] = useState(false);
+  const [videoCallData, setVideoCallData] = useState(null);
+  const [isVideoCallRequesting, setIsVideoCallRequesting] = useState(false);
+  const [incomingVideoCall, setIncomingVideoCall] = useState(null);
 
   // Establish socket connection immediately
   useEffect(() => {
@@ -87,20 +90,50 @@ function App() {
 
     // Listen for video call events
     newSocket.on('videoCallRequest', (data) => {
-      const confirmed = window.confirm(`${data.fromPlayer.name} wants to start a video call. Accept?`);
-      if (confirmed) {
-        setVideoCallUrl(data.roomUrl);
-        setShowVideoCall(true);
-        newSocket.emit('acceptVideoCall', {
-          fromPlayerId: data.fromPlayer.id,
-          roomUrl: data.roomUrl
-        });
-      }
+      console.log('Received video call request:', data);
+      setIncomingVideoCall(data);
     });
 
     newSocket.on('videoCallAccepted', (data) => {
-      setVideoCallUrl(data.roomUrl);
+      setIsVideoCallRequesting(false);
+      setVideoCallData({
+        roomUrl: data.roomUrl,
+        roomName: data.roomName,
+        isDemo: data.isDemo,
+        paymentRequired: data.paymentRequired
+      });
       setShowVideoCall(true);
+      
+      // Show message if falling back to demo mode
+      if (data.paymentRequired) {
+        setTimeout(() => {
+          alert('Daily.co account requires payment setup. Using demo mode for video calls.');
+        }, 1000);
+      }
+    });
+
+    newSocket.on('videoCallRejected', (data) => {
+      setIsVideoCallRequesting(false);
+      alert(`${data.fromPlayer.name} rejected your video call request.`);
+    });
+
+    newSocket.on('videoCallError', (data) => {
+      setIsVideoCallRequesting(false);
+      console.error('Video call error:', data.details);
+      
+      // Show a more user-friendly error message
+      let errorMessage = 'Failed to start video call';
+      if (data.details && data.details.includes('400')) {
+        errorMessage = 'Video call service temporarily unavailable. Please try again.';
+      } else if (data.details && data.details.includes('401')) {
+        errorMessage = 'Video call service authentication failed. Please check your API key.';
+      } else if (data.details && data.details.includes('429')) {
+        errorMessage = 'Too many video calls. Please wait a moment and try again.';
+      } else if (data.details && data.details.includes('Invalid room name')) {
+        errorMessage = 'Unable to create video call room. Please try again.';
+      }
+      
+      alert(errorMessage);
     });
 
     // Listen for proximity messages
@@ -133,6 +166,8 @@ function App() {
 
     return () => {
       newSocket.close();
+      // Clean up any video calls when component unmounts
+      cleanupVideoCall();
     };
   }, []);
 
@@ -161,14 +196,48 @@ function App() {
   };
 
   const handleVideoCallRequest = (targetPlayerId) => {
-    // Create a Daily.co room URL (in production, you'd create this via API)
-    const roomUrl = `https://gather-clone.daily.co/${Date.now()}`;
+    if (isVideoCallRequesting) {
+      alert('Video call request already in progress. Please wait.');
+      return;
+    }
+    
+    setIsVideoCallRequesting(true);
     socket.emit('requestVideoCall', {
-      targetPlayerId,
-      roomUrl
+      targetPlayerId
     });
-    setVideoCallUrl(roomUrl);
+    
+    // Reset the requesting state after a timeout
+    setTimeout(() => {
+      setIsVideoCallRequesting(false);
+    }, 5000);
+  };
+
+  const handleAcceptVideoCall = () => {
+    if (!incomingVideoCall) return;
+    
+    setVideoCallData({
+      roomUrl: incomingVideoCall.roomUrl,
+      roomName: incomingVideoCall.roomName,
+      isDemo: incomingVideoCall.isDemo,
+      fromPlayer: incomingVideoCall.fromPlayer
+    });
     setShowVideoCall(true);
+    socket.emit('acceptVideoCall', {
+      fromPlayerId: incomingVideoCall.fromPlayer.id,
+      roomUrl: incomingVideoCall.roomUrl,
+      roomName: incomingVideoCall.roomName,
+      isDemo: incomingVideoCall.isDemo
+    });
+    setIncomingVideoCall(null);
+  };
+
+  const handleRejectVideoCall = () => {
+    if (!incomingVideoCall) return;
+    
+    socket.emit('rejectVideoCall', {
+      fromPlayerId: incomingVideoCall.fromPlayer.id
+    });
+    setIncomingVideoCall(null);
   };
 
   const handleSendProximityMessage = (message) => {
@@ -190,6 +259,9 @@ function App() {
   };
 
   const handleLeaveRoom = () => {
+    // Clean up any active video calls
+    cleanupVideoCall();
+    
     if (socket) {
       socket.disconnect();
     }
@@ -203,6 +275,9 @@ function App() {
     setProximityMessages([]);
     setPendingJoin(null);
     setShowHeader(false);
+    setVideoCallData(null);
+    setShowVideoCall(false);
+    setIsVideoCallRequesting(false);
     
     // Reconnect for next use
     window.location.reload();
@@ -383,14 +458,75 @@ function App() {
           onSendMessage={handleSendProximityMessage}
           messages={proximityMessages}
           currentPlayer={currentPlayer}
+          isVideoCallRequesting={isVideoCallRequesting}
         />
+      )}
+
+      {/* Video Call Request Modal */}
+      {incomingVideoCall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full mx-auto mb-4 flex items-center justify-center">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </div>
+              
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                Incoming Video Call
+              </h3>
+              
+              <p className="text-gray-600 mb-6">
+                <span className="font-semibold text-purple-600">{incomingVideoCall.fromPlayer.name}</span> wants to start a video call with you.
+              </p>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleAcceptVideoCall}
+                  className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  Accept
+                </button>
+                <button
+                  onClick={handleRejectVideoCall}
+                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  Decline
+                </button>
+              </div>
+              
+              <p className="text-xs text-gray-500 mt-4">
+                This will open a video call window
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Video Call */}
       {showVideoCall && (
         <VideoCall 
-          roomUrl={videoCallUrl}
-          onClose={() => setShowVideoCall(false)}
+          key={`${videoCallData?.roomUrl}-${Date.now()}`}
+          roomUrl={videoCallData?.roomUrl}
+          roomName={videoCallData?.roomName}
+          isDemo={videoCallData?.isDemo}
+          onClose={() => {
+            setShowVideoCall(false);
+            // Clean up the video call room
+            if (socket && videoCallData?.roomName) {
+              socket.emit('endVideoCall', {
+                roomName: videoCallData.roomName,
+                isDemo: videoCallData.isDemo
+              });
+            }
+            // Force global cleanup
+            cleanupVideoCall();
+            // Reset video call data after a short delay to ensure cleanup
+            setTimeout(() => {
+              setVideoCallData(null);
+            }, 100);
+          }}
         />
       )}
 

@@ -1,9 +1,127 @@
+// Load environment variables
+require('dotenv').config();
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const fetch = require('node-fetch');
+
+// Daily.co API configuration
+const DAILY_API_KEY = process.env.DAILY_API_KEY;
+const DAILY_API_URL = 'https://api.daily.co/v1';
+
+// Validate Daily.co API key
+if (!DAILY_API_KEY) {
+  console.warn('⚠️  DAILY_API_KEY not found. Video calls will use demo mode.');
+}
+
+// Daily.co API helper functions
+async function createDailyRoom(roomName, maxParticipants = 10) {
+  if (!DAILY_API_KEY) {
+    // Return a demo room URL for development
+    return {
+      url: `https://gather-clone.daily.co/demo-${Date.now()}`,
+      name: roomName,
+      isDemo: true
+    };
+  }
+
+  try {
+    // Clean and validate room name (Daily.co has specific requirements)
+    const cleanRoomName = roomName
+      .replace(/[^a-zA-Z0-9-_]/g, '-') // Replace invalid chars with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single
+      .replace(/^-|-$/g, '') // Remove leading/trailing hyphens
+      .toLowerCase()
+      .substring(0, 50); // Limit length
+    
+    if (!cleanRoomName) {
+      throw new Error('Invalid room name after cleaning');
+    }
+
+    const response = await fetch(`${DAILY_API_URL}/rooms`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${DAILY_API_KEY}`
+      },
+      body: JSON.stringify({
+        name: cleanRoomName,
+        privacy: 'private',
+        properties: {
+          max_participants: maxParticipants,
+          enable_chat: true,
+          start_video_off: false,
+          start_audio_off: false,
+          exp: Math.round(Date.now() / 1000) + (24 * 60 * 60) // 24 hours expiry
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Daily.co API response:', errorText);
+      
+      // Check for payment-related errors
+      if (response.status === 402 || errorText.includes('payment')) {
+        console.warn('Daily.co account requires payment setup. Falling back to demo mode.');
+        return {
+          url: `https://gather-clone.daily.co/demo-${Date.now()}`,
+          name: roomName,
+          isDemo: true,
+          paymentRequired: true
+        };
+      }
+      
+      throw new Error(`Daily.co API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const room = await response.json();
+    return {
+      url: room.url,
+      name: room.name,
+      id: room.id,
+      isDemo: false
+    };
+  } catch (error) {
+    console.error('Error creating Daily.co room:', error);
+    
+    // If it's a payment-related error, fall back to demo mode
+    if (error.message.includes('payment') || error.message.includes('402')) {
+      console.warn('Falling back to demo mode due to payment issues');
+      return {
+        url: `https://gather-clone.daily.co/demo-${Date.now()}`,
+        name: roomName,
+        isDemo: true,
+        paymentRequired: true
+      };
+    }
+    
+    throw error;
+  }
+}
+
+async function deleteDailyRoom(roomName) {
+  if (!DAILY_API_KEY || !roomName) return;
+
+  try {
+    const response = await fetch(`${DAILY_API_URL}/rooms/${roomName}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${DAILY_API_KEY}`
+      }
+    });
+
+    if (response.ok) {
+      console.log(`Deleted Daily.co room: ${roomName}`);
+    }
+  } catch (error) {
+    console.error('Error deleting Daily.co room:', error);
+  }
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -172,6 +290,44 @@ app.get('/api/rooms/:code', (req, res) => {
   });
 });
 
+// Video Call API Routes
+app.post('/api/video-calls/create', async (req, res) => {
+  try {
+    const { roomName, maxParticipants } = req.body;
+    
+    if (!roomName) {
+      return res.status(400).json({ error: 'Room name is required' });
+    }
+
+    const dailyRoom = await createDailyRoom(roomName, maxParticipants || 10);
+    
+    res.json({
+      success: true,
+      room: dailyRoom
+    });
+  } catch (error) {
+    console.error('Error creating video call:', error);
+    res.status(500).json({ 
+      error: 'Failed to create video call',
+      details: error.message 
+    });
+  }
+});
+
+app.delete('/api/video-calls/:roomName', async (req, res) => {
+  try {
+    const { roomName } = req.params;
+    await deleteDailyRoom(roomName);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting video call:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete video call',
+      details: error.message 
+    });
+  }
+});
+
 // Catch-all handler for React app (serve index.html for non-API routes)
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
@@ -291,18 +447,34 @@ io.on('connection', (socket) => {
   });
 
   // Handle video call requests
-  socket.on('requestVideoCall', (data) => {
+  socket.on('requestVideoCall', async (data) => {
     const player = players.get(socket.id);
     if (player) {
       const room = rooms.get(player.roomId);
       if (room) {
         const targetPlayer = [...room.players.values()].find(p => p.id === data.targetPlayerId);
         if (targetPlayer) {
-          const targetSocket = [...room.players.entries()].find(([_, p]) => p.id === targetPlayer.id)?.[0];
-          if (targetSocket) {
-            io.to(targetSocket).emit('videoCallRequest', {
-              fromPlayer: player,
-              roomUrl: data.roomUrl
+          try {
+            // Create a cleaner Daily.co room name
+            const timestamp = Date.now();
+            const roomName = `gather-${timestamp}-${Math.random().toString(36).substring(2, 8)}`;
+            const dailyRoom = await createDailyRoom(roomName, 2);
+            
+            const targetSocket = [...room.players.entries()].find(([_, p]) => p.id === targetPlayer.id)?.[0];
+            if (targetSocket) {
+              io.to(targetSocket).emit('videoCallRequest', {
+                fromPlayer: player,
+                roomUrl: dailyRoom.url,
+                roomName: dailyRoom.name,
+                isDemo: dailyRoom.isDemo,
+                paymentRequired: dailyRoom.paymentRequired
+              });
+            }
+          } catch (error) {
+            console.error('Error creating video call room:', error);
+            socket.emit('videoCallError', {
+              message: 'Failed to create video call room',
+              details: error.message
             });
           }
         }
@@ -321,10 +493,44 @@ io.on('connection', (socket) => {
           const requesterSocket = [...room.players.entries()].find(([_, p]) => p.id === requesterPlayer.id)?.[0];
           if (requesterSocket) {
             io.to(requesterSocket).emit('videoCallAccepted', {
-              roomUrl: data.roomUrl
+              roomUrl: data.roomUrl,
+              roomName: data.roomName,
+              isDemo: data.isDemo,
+              paymentRequired: data.paymentRequired
             });
           }
         }
+      }
+    }
+  });
+
+  // Handle video call rejection
+  socket.on('rejectVideoCall', (data) => {
+    const player = players.get(socket.id);
+    if (player) {
+      const room = rooms.get(player.roomId);
+      if (room) {
+        const requesterPlayer = [...room.players.values()].find(p => p.id === data.fromPlayerId);
+        if (requesterPlayer) {
+          const requesterSocket = [...room.players.entries()].find(([_, p]) => p.id === requesterPlayer.id)?.[0];
+          if (requesterSocket) {
+            io.to(requesterSocket).emit('videoCallRejected', {
+              fromPlayer: player
+            });
+          }
+        }
+      }
+    }
+  });
+
+  // Handle video call cleanup
+  socket.on('endVideoCall', async (data) => {
+    if (data.roomName && !data.isDemo) {
+      try {
+        await deleteDailyRoom(data.roomName);
+        console.log(`Cleaned up video call room: ${data.roomName}`);
+      } catch (error) {
+        console.error('Error cleaning up video call room:', error);
       }
     }
   });

@@ -1,23 +1,98 @@
 import React, { useEffect, useRef, useState } from 'react';
 import DailyIframe from '@daily-co/daily-js';
 
-const VideoCall = ({ roomUrl, onClose }) => {
+// Singleton pattern for DailyIframe
+class DailyIframeSingleton {
+  constructor() {
+    this.instance = null;
+    this.isInitializing = false;
+    this.initializationPromise = null;
+  }
+
+  async initialize(element, options) {
+    // If already initializing, wait for that to complete
+    if (this.isInitializing) {
+      return this.initializationPromise;
+    }
+
+    // If instance exists, destroy it first
+    if (this.instance) {
+      await this.destroy();
+    }
+
+    this.isInitializing = true;
+    this.initializationPromise = this._createInstance(element, options);
+    
+    try {
+      const result = await this.initializationPromise;
+      return result;
+    } finally {
+      this.isInitializing = false;
+      this.initializationPromise = null;
+    }
+  }
+
+  async _createInstance(element, options) {
+    // Wait a bit to ensure any previous instance is fully cleaned up
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    try {
+      this.instance = DailyIframe.createFrame(element, options);
+      return this.instance;
+    } catch (error) {
+      console.error('Error creating DailyIframe instance:', error);
+      this.instance = null;
+      throw error;
+    }
+  }
+
+  async destroy() {
+    if (this.instance) {
+      try {
+        await this.instance.leave();
+        this.instance.destroy();
+      } catch (error) {
+        console.log('Error destroying DailyIframe instance:', error);
+      } finally {
+        this.instance = null;
+      }
+    }
+  }
+
+  getInstance() {
+    return this.instance;
+  }
+}
+
+// Global singleton
+const dailySingleton = new DailyIframeSingleton();
+
+// Global cleanup function
+export const cleanupVideoCall = () => {
+  return dailySingleton.destroy();
+};
+
+const VideoCall = ({ roomUrl, roomName, isDemo = false, onClose }) => {
   const callFrameRef = useRef();
-  const [callFrame, setCallFrame] = useState(null);
   const [isJoined, setIsJoined] = useState(false);
   const [participants, setParticipants] = useState({});
   const [isConnecting, setIsConnecting] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Create a simple room for demo purposes
-    // In production, you'd want to create rooms via Daily.co API
     const createCallFrame = async () => {
       try {
-        // For this demo, we'll use a simple Daily.co room URL
-        // You would normally create this via their API
+        // For demo mode, we'll use a simple Daily.co room URL
+        // For real mode, we'll use the provided roomUrl
         const demoRoomUrl = `https://gather-clone.daily.co/demo-${Date.now()}`;
+        const finalRoomUrl = isDemo ? demoRoomUrl : roomUrl;
         
-        const frame = DailyIframe.createFrame(callFrameRef.current, {
+        if (!finalRoomUrl) {
+          throw new Error('No room URL provided');
+        }
+        
+        // Initialize the singleton
+        const frame = await dailySingleton.initialize(callFrameRef.current, {
           iframeStyle: {
             width: '100%',
             height: '100%',
@@ -28,12 +103,15 @@ const VideoCall = ({ roomUrl, onClose }) => {
           showFullscreenButton: true,
         });
 
-        setCallFrame(frame);
+        if (!frame) {
+          throw new Error('Failed to create DailyIframe instance');
+        }
 
         // Event listeners
         frame.on('joined-meeting', () => {
           setIsJoined(true);
           setIsConnecting(false);
+          setError(null);
         });
 
         frame.on('left-meeting', () => {
@@ -56,15 +134,33 @@ const VideoCall = ({ roomUrl, onClose }) => {
           });
         });
 
+        frame.on('error', (event) => {
+          console.error('Daily.co frame error:', event);
+          setError(event.errorMsg || 'Video call error occurred');
+          setIsConnecting(false);
+          
+          // Handle specific errors
+          if (event.errorMsg === 'account-missing-payment-method') {
+            alert('Daily.co account requires payment setup. Video calls will use demo mode.');
+            onClose();
+          }
+        });
+
         // Join the room
-        await frame.join({ url: demoRoomUrl });
+        await frame.join({ url: finalRoomUrl });
 
       } catch (error) {
         console.error('Error creating call frame:', error);
         setIsConnecting(false);
-        // Fallback to simple WebRTC or show error
+        setError(error.message || 'Failed to create video call');
+        
+        // Show error message
         setTimeout(() => {
-          alert('Video call feature is not available. This would normally use Daily.co API.');
+          if (isDemo) {
+            alert('Demo video call feature is not available. This would normally use Daily.co API.');
+          } else {
+            alert(`Video call error: ${error.message || 'Failed to join video call'}`);
+          }
           onClose();
         }, 2000);
       }
@@ -73,16 +169,12 @@ const VideoCall = ({ roomUrl, onClose }) => {
     createCallFrame();
 
     return () => {
-      if (callFrame) {
-        callFrame.destroy();
-      }
+      // Component cleanup - don't destroy here, let the next instance handle it
     };
-  }, [roomUrl, onClose]);
+  }, [roomUrl, isDemo, onClose]);
 
   const handleLeave = () => {
-    if (callFrame) {
-      callFrame.leave();
-    }
+    cleanupVideoCall();
     onClose();
   };
 
@@ -101,6 +193,8 @@ const VideoCall = ({ roomUrl, onClose }) => {
               <h3 className="text-xl font-bold">Video Call</h3>
               <p className="text-purple-100 text-sm">
                 {isConnecting ? 'Connecting...' : isJoined ? `${Object.keys(participants).length + 1} participant(s)` : 'Setting up...'}
+                {roomName && ` • ${roomName}`}
+                {isDemo && ' (Demo Mode)'}
               </p>
             </div>
           </div>
@@ -134,12 +228,25 @@ const VideoCall = ({ roomUrl, onClose }) => {
                 <h3 className="text-xl font-semibold mb-2">Connecting to video call...</h3>
                 <p className="text-gray-300 mb-4">Setting up your camera and microphone</p>
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 max-w-md mx-auto">
-                  <p className="text-sm text-gray-200">
-                    💡 This demo uses a simplified video call setup.
-                  </p>
-                  <p className="text-xs text-gray-300 mt-2">
-                    In production, integrate with Daily.co API for full functionality.
-                  </p>
+                  {isDemo ? (
+                    <>
+                      <p className="text-sm text-gray-200">
+                        💡 This is a demo video call setup.
+                      </p>
+                      <p className="text-xs text-gray-300 mt-2">
+                        In production, this would use your Daily.co API key for full functionality.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-200">
+                        ✅ Connected to Daily.co video service.
+                      </p>
+                      <p className="text-xs text-gray-300 mt-2">
+                        Room: {roomName || 'Unknown'}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             )}
