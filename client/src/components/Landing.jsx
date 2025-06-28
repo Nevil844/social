@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import UserProfile from './UserProfile';
+import UserProfile, { UserAvatar } from './UserProfile';
 
 const Landing = ({ onJoinRoom }) => {
   const { user, login, isAuthenticated, loading: authLoading } = useAuth();
@@ -211,13 +211,7 @@ const Landing = ({ onJoinRoom }) => {
               <div className="text-gray-400">Loading...</div>
             ) : isAuthenticated ? (
               <div className="flex items-center space-x-3">
-                {user?.picture && (
-                  <img
-                    src={user.picture}
-                    alt={user.name}
-                    className="w-8 h-8 rounded-full"
-                  />
-                )}
+                <UserAvatar user={user} size="sm" />
                 <span className="text-gray-200 font-medium">{user?.name}</span>
                 <button
                   onClick={() => setShowProfile(true)}

@@ -38,8 +38,40 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
     let currentPlayerSprite;
     let graphics;
     let tileSize = 40; // Increased for better visibility
-    let mapWidth = Math.floor(window.innerWidth / tileSize);
-    let mapHeight = Math.floor(window.innerHeight / tileSize);
+    
+    // Fixed map dimensions (in tiles)
+    const mapDimensions = {
+      office: { width: 60, height: 40 },
+      park: { width: 70, height: 50 },
+      cafe: { width: 55, height: 35 },
+      campus: { width: 65, height: 45 },
+      beach: { width: 75, height: 55 },
+      space: { width: 80, height: 60 }
+    };
+    
+    // Get map dimensions for current room
+    const mapType = room?.mapType || 'office';
+    const mapConfig = mapDimensions[mapType];
+    const mapWidth = mapConfig.width * tileSize;
+    const mapHeight = mapConfig.height * tileSize;
+    
+    // Boundary margin (visible area inside the map)
+    const boundaryMargin = 100; // 100px margin from edges
+    const characterSize = 40; // Approximate character size
+    const characterOffset = characterSize / 2; // Half character size for positioning
+    const playableWidth = mapWidth - (boundaryMargin * 2);
+    const playableHeight = mapHeight - (boundaryMargin * 2);
+    
+    // Camera bounds - allow character edges to reach boundaries, not center
+    const cameraBoundsX = boundaryMargin + characterOffset;
+    const cameraBoundsY = boundaryMargin + characterOffset;
+    const cameraBoundsWidth = playableWidth - characterSize;
+    const cameraBoundsHeight = playableHeight - characterSize;
+    
+    // Camera variables
+    let camera;
+    let worldContainer;
+    let boundaryWalls;
 
     function preload() {
       // Create colored squares for players (we'll draw them programmatically)
@@ -49,11 +81,21 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
     function create() {
       gameScene.current = this;
       
+      // Create world container for the map
+      worldContainer = this.add.container(0, 0);
+      
       // Create graphics object for drawing
       graphics = this.add.graphics();
+      worldContainer.add(graphics);
       
-      // Draw tile-based background based on map type
-      drawBackground.call(this, room?.mapType || 'office');
+      // Draw the complete world (map + dead-end areas)
+      drawWorld.call(this, mapType, mapWidth, mapHeight);
+      
+      // Create boundary walls
+      createBoundaryWalls.call(this, mapWidth, mapHeight);
+      
+      // Setup camera
+      setupCamera.call(this, mapWidth, mapHeight);
       
       // Setup input - Enhanced cursor key setup
       cursors = this.input.keyboard.createCursorKeys();
@@ -65,8 +107,8 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       this.cursors = cursors;
       this.wasd = wasd;
       
-      // Configure physics world bounds
-      this.physics.world.setBounds(0, 0, mapWidth * tileSize, mapHeight * tileSize);
+      // Configure physics world bounds to match playable area boundaries
+      this.physics.world.setBounds(boundaryMargin, boundaryMargin, playableWidth, playableHeight);
       
       // Create current player
       if (currentPlayer) {
@@ -77,9 +119,48 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       phaserGame.current.sceneReady = true;
     }
 
-    function drawBackground(mapType) {
+    function drawWorld(mapType, mapWidth, mapHeight) {
       graphics.clear();
       
+      // Draw dead-end background first (covers entire world)
+      drawDeadEndBackground.call(this, mapWidth, mapHeight);
+      
+      // Draw the actual map area
+      drawBackground.call(this, mapType, mapWidth, mapHeight);
+    }
+
+    function drawDeadEndBackground(mapWidth, mapHeight) {
+      // Create a dark, dead-end looking background outside the map
+      const worldWidth = Math.max(window.innerWidth * 2, mapWidth * 1.5);
+      const worldHeight = Math.max(window.innerHeight * 2, mapHeight * 1.5);
+      
+      // Dark gradient background
+      graphics.fillGradientStyle(0x0a0a0a, 0x0a0a0a, 0x1a1a1a, 0x1a1a1a, 1);
+      graphics.fillRect(0, 0, worldWidth, worldHeight);
+      
+      // Add some subtle grid lines to make it look like a dead end
+      graphics.lineStyle(1, 0x333333, 0.3);
+      for (let x = 0; x < worldWidth; x += 100) {
+        graphics.moveTo(x, 0);
+        graphics.lineTo(x, worldHeight);
+      }
+      for (let y = 0; y < worldHeight; y += 100) {
+        graphics.moveTo(0, y);
+        graphics.lineTo(worldWidth, y);
+      }
+      graphics.strokePath();
+      
+      // Add some "dead end" visual elements
+      graphics.fillStyle(0x444444, 0.2);
+      for (let i = 0; i < 20; i++) {
+        const x = Math.random() * worldWidth;
+        const y = Math.random() * worldHeight;
+        const size = Math.random() * 50 + 20;
+        graphics.fillCircle(x, y, size);
+      }
+    }
+
+    function drawBackground(mapType, mapWidth, mapHeight) {
       const mapConfigs = {
         office: {
           baseColors: [0x1a1625, 0x2d1b69], // Dark purple theme
@@ -199,34 +280,31 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
             { x: 30, y: 12, w: 2, h: 4, color: 0x365314, alpha: 1.0, type: 'palm' },
             { x: 45, y: 8, w: 2, h: 4, color: 0x365314, alpha: 1.0, type: 'palm' },
             // Beach umbrellas
-            { x: 20, y: 25, w: 2, h: 1, color: 0xf472b6, alpha: 0.9, type: 'umbrella' },
-            // Surfboards
-            { x: 18, y: 14, w: 1, h: 3, color: 0x06b6d4, alpha: 1.0, type: 'surfboard' }
+            { x: 18, y: 18, w: 1, h: 2, color: 0xf472b6, alpha: 1.0, type: 'umbrella' },
+            { x: 32, y: 18, w: 1, h: 2, color: 0xf472b6, alpha: 1.0, type: 'umbrella' }
           ]
         },
         space: {
-          baseColors: [0x1e293b, 0x334155],
-          accent: 0x6366f1,
+          baseColors: [0x1a1625, 0x2d1b69], // Dark purple theme
+          accent: 0x8b5cf6,
           structures: [
             // Command center
-            { x: 15, y: 12, w: 12, h: 8, color: 0x374151, alpha: 0.9, type: 'command' },
-            // Engine room
-            { x: 30, y: 8, w: 8, h: 6, color: 0x4f46e5, alpha: 0.8, type: 'engine' },
-            // Hydroponics bay
-            { x: 8, y: 20, w: 10, h: 6, color: 0x059669, alpha: 0.7, type: 'hydroponics' },
-            // Airlock chamber
-            { x: 35, y: 20, w: 6, h: 4, color: 0xdc2626, alpha: 0.8, type: 'airlock' },
+            { x: 10, y: 8, w: 12, h: 8, color: 0x8b5cf6, alpha: 0.8, type: 'command' },
+            // Laboratory modules
+            { x: 25, y: 5, w: 10, h: 6, color: 0x059669, alpha: 0.7, type: 'lab' },
+            // Living quarters
+            { x: 40, y: 10, w: 8, h: 6, color: 0x7c3aed, alpha: 0.6, type: 'quarters' },
+            // Engineering bay
+            { x: 5, y: 20, w: 15, h: 8, color: 0xf59e0b, alpha: 0.7, type: 'engineering' },
             // Observation deck
-            { x: 5, y: 5, w: 8, h: 5, color: 0x0ea5e9, alpha: 0.6, type: 'observation' }
+            { x: 30, y: 20, w: 12, h: 6, color: 0x0ea5e9, alpha: 0.6, type: 'observation' }
           ],
           decorations: [
+            // Space equipment
+            { x: 20, y: 15, w: 3, h: 2, color: 0x6b7280, alpha: 1.0, type: 'equipment' },
+            { x: 50, y: 12, w: 2, h: 3, color: 0x6b7280, alpha: 1.0, type: 'equipment' },
             // Control panels
-            { x: 12, y: 8, w: 2, h: 2, color: 0x06b6d4, alpha: 1.0, type: 'panel' },
-            { x: 25, y: 15, w: 2, h: 2, color: 0x06b6d4, alpha: 1.0, type: 'panel' },
-            // Communication array
-            { x: 40, y: 5, w: 3, h: 4, color: 0x8b5cf6, alpha: 1.0, type: 'antenna' },
-            // Solar panels
-            { x: 20, y: 25, w: 4, h: 2, color: 0xfbbf24, alpha: 0.9, type: 'solar' }
+            { x: 15, y: 25, w: 4, h: 1, color: 0x374151, alpha: 1.0, type: 'panel' }
           ]
         }
       };
@@ -235,24 +313,32 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       
       // Create realistic textured background
       graphics.fillGradientStyle(config.baseColors[0], config.baseColors[0], config.baseColors[1], config.baseColors[1], 1);
-      graphics.fillRect(0, 0, mapWidth * tileSize, mapHeight * tileSize);
+      graphics.fillRect(0, 0, mapWidth, mapHeight);
       
-      // Draw subtle grid pattern
+      // Draw boundary area (darker area outside playable space)
+      graphics.fillStyle(0x000000, 0.3);
+      graphics.fillRect(0, 0, mapWidth, mapHeight);
+      
+      // Draw playable area (normal background)
+      graphics.fillGradientStyle(config.baseColors[0], config.baseColors[0], config.baseColors[1], config.baseColors[1], 1);
+      graphics.fillRect(boundaryMargin, boundaryMargin, playableWidth, playableHeight);
+      
+      // Draw subtle grid pattern only in playable area
       graphics.lineStyle(1, 0x94a3b8, 0.15);
-      for (let x = 0; x <= mapWidth; x++) {
-        graphics.moveTo(x * tileSize, 0);
-        graphics.lineTo(x * tileSize, mapHeight * tileSize);
+      for (let x = boundaryMargin; x <= boundaryMargin + playableWidth; x += tileSize) {
+        graphics.moveTo(x, boundaryMargin);
+        graphics.lineTo(x, boundaryMargin + playableHeight);
       }
-      for (let y = 0; y <= mapHeight; y++) {
-        graphics.moveTo(0, y * tileSize);
-        graphics.lineTo(mapWidth * tileSize, y * tileSize);
+      for (let y = boundaryMargin; y <= boundaryMargin + playableHeight; y += tileSize) {
+        graphics.moveTo(boundaryMargin, y);
+        graphics.lineTo(boundaryMargin + playableWidth, y);
       }
       graphics.strokePath();
       
       // Draw realistic 3D-like structures with shadows and highlights
       config.structures.forEach(structure => {
-        const x = structure.x * tileSize;
-        const y = structure.y * tileSize;
+        const x = (structure.x * tileSize) + boundaryMargin;
+        const y = (structure.y * tileSize) + boundaryMargin;
         const w = structure.w * tileSize;
         const h = structure.h * tileSize;
         
@@ -279,8 +365,8 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       
       // Draw realistic decorations
       config.decorations.forEach(decoration => {
-        const x = decoration.x * tileSize;
-        const y = decoration.y * tileSize;
+        const x = (decoration.x * tileSize) + boundaryMargin;
+        const y = (decoration.y * tileSize) + boundaryMargin;
         const w = decoration.w * tileSize;
         const h = decoration.h * tileSize;
         
@@ -299,6 +385,99 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
         // Add decoration-specific details
         addDecorationDetails(graphics, decoration, x, y, w, h);
       });
+    }
+
+    function createBoundaryWalls(mapWidth, mapHeight) {
+      boundaryWalls = this.physics.add.staticGroup();
+      
+      // Create visible boundary walls with margins
+      const wallThickness = 20;
+      const wallColor = 0x7c3aed; // Purple color for boundaries
+      const wallAlpha = 0.8;
+      
+      // Top boundary wall (visible)
+      const topWall = this.add.rectangle(boundaryMargin, boundaryMargin - wallThickness/2, playableWidth, wallThickness, wallColor, wallAlpha);
+      this.physics.add.existing(topWall, true);
+      boundaryWalls.add(topWall);
+      
+      // Bottom boundary wall (visible)
+      const bottomWall = this.add.rectangle(boundaryMargin, boundaryMargin + playableHeight + wallThickness/2, playableWidth, wallThickness, wallColor, wallAlpha);
+      this.physics.add.existing(bottomWall, true);
+      boundaryWalls.add(bottomWall);
+      
+      // Left boundary wall (visible)
+      const leftWall = this.add.rectangle(boundaryMargin - wallThickness/2, boundaryMargin, wallThickness, playableHeight, wallColor, wallAlpha);
+      this.physics.add.existing(leftWall, true);
+      boundaryWalls.add(leftWall);
+      
+      // Right boundary wall (visible)
+      const rightWall = this.add.rectangle(boundaryMargin + playableWidth + wallThickness/2, boundaryMargin, wallThickness, playableHeight, wallColor, wallAlpha);
+      this.physics.add.existing(rightWall, true);
+      boundaryWalls.add(rightWall);
+      
+      // Add corner decorations to make boundaries more visible
+      const cornerSize = 30;
+      const cornerColor = 0x8b5cf6;
+      
+      // Top-left corner
+      const topLeftCorner = this.add.rectangle(boundaryMargin - cornerSize/2, boundaryMargin - cornerSize/2, cornerSize, cornerSize, cornerColor, 0.9);
+      this.physics.add.existing(topLeftCorner, true);
+      boundaryWalls.add(topLeftCorner);
+      
+      // Top-right corner
+      const topRightCorner = this.add.rectangle(boundaryMargin + playableWidth + cornerSize/2, boundaryMargin - cornerSize/2, cornerSize, cornerSize, cornerColor, 0.9);
+      this.physics.add.existing(topRightCorner, true);
+      boundaryWalls.add(topRightCorner);
+      
+      // Bottom-left corner
+      const bottomLeftCorner = this.add.rectangle(boundaryMargin - cornerSize/2, boundaryMargin + playableHeight + cornerSize/2, cornerSize, cornerSize, cornerColor, 0.9);
+      this.physics.add.existing(bottomLeftCorner, true);
+      boundaryWalls.add(bottomLeftCorner);
+      
+      // Bottom-right corner
+      const bottomRightCorner = this.add.rectangle(boundaryMargin + playableWidth + cornerSize/2, boundaryMargin + playableHeight + cornerSize/2, cornerSize, cornerSize, cornerColor, 0.9);
+      this.physics.add.existing(bottomRightCorner, true);
+      boundaryWalls.add(bottomRightCorner);
+    }
+
+    function setupCamera(mapWidth, mapHeight) {
+      camera = this.cameras.main;
+      
+      // Set world bounds for camera - character edges can reach boundaries
+      camera.setBounds(boundaryMargin, boundaryMargin, playableWidth, playableHeight);
+      
+      // Set camera zoom based on screen size
+      const screenWidth = window.innerWidth;
+      const screenHeight = window.innerHeight;
+      
+      // Calculate appropriate zoom level
+      const mapAspectRatio = mapWidth / mapHeight;
+      const screenAspectRatio = screenWidth / screenHeight;
+      
+      let zoom = 1;
+      if (screenWidth < 768) {
+        // Mobile devices - zoom out more
+        zoom = 0.8;
+      } else if (screenWidth < 1024) {
+        // Tablets - moderate zoom
+        zoom = 0.9;
+      } else {
+        // Desktop - full zoom
+        zoom = 1.0;
+      }
+      
+      camera.setZoom(zoom);
+      
+      // Enable camera following for current player if it exists
+      if (currentPlayerSprite && currentPlayerSprite.container) {
+        camera.startFollow(currentPlayerSprite.container, true, 0.1, 0.1);
+      }
+    }
+
+    function updateCameraFollow() {
+      if (camera && currentPlayerSprite && currentPlayerSprite.container) {
+        camera.startFollow(currentPlayerSprite.container, true, 0.1, 0.1);
+      }
     }
 
     function addStructureDetails(graphics, structure, x, y, w, h) {
@@ -634,10 +813,29 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       const playerObject = createHumanAvatar(playerData, isCurrentPlayer);
       if (!playerObject) return null;
       
+      // Add physics body to the player container
+      if (playerObject.container) {
+        gameScene.current.physics.add.existing(playerObject.container);
+        playerObject.container.body.setCollideWorldBounds(true);
+        
+        // Add collision with boundary walls
+        if (boundaryWalls) {
+          gameScene.current.physics.add.collider(playerObject.container, boundaryWalls);
+        }
+      }
+      
       players.set(playerData.id, playerObject);
       
       if (isCurrentPlayer) {
         currentPlayerSprite = playerObject;
+        // Setup camera to follow current player
+        if (camera && playerObject.container) {
+          camera.startFollow(playerObject.container, true, 0.1, 0.1);
+        }
+        // Update camera follow after a short delay to ensure everything is set up
+        setTimeout(() => {
+          updateCameraFollow();
+        }, 100);
       }
       
       return playerObject;
@@ -646,11 +844,15 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
     function updatePlayerPosition(playerId, x, y) {
       const player = players.get(playerId);
       if (player && player.container) {
+        // Clamp position to allow character edges to reach boundaries
+        const clampedX = Math.max(boundaryMargin + characterOffset, Math.min(x, boundaryMargin + playableWidth - characterOffset));
+        const clampedY = Math.max(boundaryMargin + characterOffset, Math.min(y, boundaryMargin + playableHeight - characterOffset));
+        
         // Smooth movement animation with easing
         gameScene.current.tweens.add({
           targets: player.container,
-          x: x,
-          y: y,
+          x: clampedX,
+          y: clampedY,
           duration: 150,
           ease: 'Power2'
         });
@@ -699,11 +901,22 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       // Apply velocities to the physics body
       if (currentPlayerSprite.container && currentPlayerSprite.container.body) {
         currentPlayerSprite.container.body.setVelocity(velocityX, velocityY);
+        
+        // Ensure player stays within playable bounds - character edges can reach boundaries
+        const x = currentPlayerSprite.container.body.x;
+        const y = currentPlayerSprite.container.body.y;
+        
+        if (x < boundaryMargin + characterOffset) currentPlayerSprite.container.body.x = boundaryMargin + characterOffset;
+        if (x > boundaryMargin + playableWidth - characterOffset) currentPlayerSprite.container.body.x = boundaryMargin + playableWidth - characterOffset;
+        if (y < boundaryMargin + characterOffset) currentPlayerSprite.container.body.y = boundaryMargin + characterOffset;
+        if (y > boundaryMargin + playableHeight - characterOffset) currentPlayerSprite.container.body.y = boundaryMargin + playableHeight - characterOffset;
       }
       
       // Send position update if moved
       if (moved && onPlayerMove) {
-        onPlayerMove(currentPlayerSprite.container.x, currentPlayerSprite.container.y);
+        const x = currentPlayerSprite.container.x;
+        const y = currentPlayerSprite.container.y;
+        onPlayerMove(x, y);
       }
     }
 
@@ -769,6 +982,29 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
     const handleResize = () => {
       if (phaserGame.current) {
         phaserGame.current.scale.resize(window.innerWidth, window.innerHeight);
+        
+        // Update camera zoom and bounds based on new screen size
+        if (camera) {
+          const screenWidth = window.innerWidth;
+          const screenHeight = window.innerHeight;
+          
+          let zoom = 1;
+          if (screenWidth < 768) {
+            // Mobile devices - zoom out more
+            zoom = 0.8;
+          } else if (screenWidth < 1024) {
+            // Tablets - moderate zoom
+            zoom = 0.9;
+          } else {
+            // Desktop - full zoom
+            zoom = 1.0;
+          }
+          
+          camera.setZoom(zoom);
+          
+          // Update camera bounds to allow character edges to reach boundaries
+          camera.setBounds(boundaryMargin, boundaryMargin, playableWidth, playableHeight);
+        }
       }
     };
 

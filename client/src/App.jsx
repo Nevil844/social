@@ -5,6 +5,7 @@ import ProximityUI from './components/ProximityUI';
 import VideoCall, { cleanupVideoCall } from './components/VideoCall';
 import Avatar from './components/Avatar';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { UserAvatar } from './components/UserProfile';
 import io from 'socket.io-client';
 
 function AppContent() {
@@ -404,11 +405,13 @@ function AppContent() {
           <div className="flex items-center space-x-3">
             {currentPlayer && (
               <div className="flex items-center space-x-2 bg-white/10 rounded-full px-4 py-2 shadow-sm">
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">
-                    {currentPlayer.name.charAt(0).toUpperCase()}
-                  </span>
-                </div>
+                <UserAvatar 
+                  user={{ 
+                    name: currentPlayer.name, 
+                    picture: currentPlayer.picture 
+                  }} 
+                  size="sm" 
+                />
                 <span className="text-sm font-medium text-gray-200">{currentPlayer.name}</span>
                 <div className="w-2 h-2 bg-green-400 rounded-full"></div>
               </div>
