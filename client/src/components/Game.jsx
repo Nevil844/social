@@ -1,10 +1,17 @@
 import React, { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 
-const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
+const Game = ({ currentPlayer, allPlayers, onPlayerMove, room, isChatInputFocused }) => {
   const gameRef = useRef();
   const phaserGame = useRef();
   const gameScene = useRef();
+  const chatInputFocusedRef = useRef(false);
+
+  // Update chat focus ref when prop changes
+  useEffect(() => {
+    console.log('Chat input focus changed:', isChatInputFocused);
+    chatInputFocusedRef.current = isChatInputFocused;
+  }, [isChatInputFocused]);
 
   useEffect(() => {
     // Game configuration - Full screen responsive
@@ -107,8 +114,14 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       this.cursors = cursors;
       this.wasd = wasd;
       
+      // Add space key
+      const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+      this.spaceKey = spaceKey;
+      
       // Configure physics world bounds to match playable area boundaries
       this.physics.world.setBounds(boundaryMargin, boundaryMargin, playableWidth, playableHeight);
+      
+      // No global key blocking needed - we'll handle this in the game update loop only
       
       // Create current player
       if (currentPlayer) {
@@ -553,8 +566,19 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
         return null;
       }
       
-      const { avatar } = playerData;
+      const avatar = playerData.avatar || { skin: 0, hair: 0, shirt: 0, accessory: 0 };
       const container = gameScene.current.add.container(playerData.x, playerData.y);
+      
+      // Convert numeric avatar properties to colors
+      const skinTones = ['#FDBCB4', '#F1C27D', '#E0AC69', '#C68642', '#8D5524', '#FFDBAC'];
+      const hairColors = ['#8B4513', '#000000', '#FFD700', '#8B0000', '#000000', '#CD853F'];
+      const shirtColors = ['#4F46E5', '#EC4899', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444'];
+      const hairStyles = ['short', 'long', 'curly', 'braids', 'fade', 'bob'];
+      
+      const skinTone = skinTones[avatar.skin % skinTones.length] || '#FDBCB4';
+      const hairColor = hairColors[avatar.hair % hairColors.length] || '#8B4513';
+      const shirtColor = shirtColors[avatar.shirt % shirtColors.length] || '#4F46E5';
+      const hairStyle = hairStyles[avatar.hair % hairStyles.length] || 'short';
       
       // Create realistic shadow
       const shadow = gameScene.current.add.graphics();
@@ -565,7 +589,7 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       const avatarGraphics = gameScene.current.add.graphics();
       
       // Body/shirt with texture
-      avatarGraphics.fillStyle(parseInt(avatar.shirtColor.replace('#', '0x')));
+      avatarGraphics.fillStyle(parseInt(shirtColor.replace('#', '0x')));
       avatarGraphics.fillEllipse(0, 18, 28, 20);
       avatarGraphics.lineStyle(2, 0x000000, 0.2);
       avatarGraphics.strokeEllipse(0, 18, 28, 20);
@@ -575,7 +599,7 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       avatarGraphics.fillEllipse(-8, 12, 6, 8);
       
       // Head/face with realistic shading
-      avatarGraphics.fillStyle(parseInt(avatar.skinTone.replace('#', '0x')));
+      avatarGraphics.fillStyle(parseInt(skinTone.replace('#', '0x')));
       avatarGraphics.fillCircle(0, 0, 16);
       avatarGraphics.lineStyle(1, 0x000000, 0.15);
       avatarGraphics.strokeCircle(0, 0, 16);
@@ -587,7 +611,7 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       avatarGraphics.fillEllipse(4, 2, 8, 10);
       
       // Detailed hair
-      drawHair(avatarGraphics, avatar.hairColor, avatar.hairStyle);
+      drawHair(avatarGraphics, hairColor, hairStyle);
       
       // Realistic eyes with reflections
       avatarGraphics.fillStyle(0xffffff);
@@ -601,7 +625,7 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       avatarGraphics.fillCircle(6, -3, 1);
       
       // Detailed eyebrows
-      avatarGraphics.fillStyle(parseInt(avatar.hairColor.replace('#', '0x')));
+      avatarGraphics.fillStyle(parseInt(hairColor.replace('#', '0x')));
       avatarGraphics.fillEllipse(-5, -7, 4, 2);
       avatarGraphics.fillEllipse(5, -7, 4, 2);
       
@@ -879,27 +903,64 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
       
       // Get WASD keys from scene
       const wasd = gameScene.current?.wasd;
+      const spaceKey = gameScene.current?.spaceKey;
       
-      // Handle horizontal movement (Arrow keys or A/D)
-      if (cursors.left.isDown || (wasd && wasd.A.isDown)) {
-        velocityX = -speed;
-        moved = true;
-      } else if (cursors.right.isDown || (wasd && wasd.D.isDown)) {
-        velocityX = speed;
-        moved = true;
+      // Only log occasionally to avoid spam
+      if (chatInputFocusedRef.current && Date.now() % 1000 < 16) {
+        console.log('💬 Chat focused - movement disabled');
       }
       
-      // Handle vertical movement (Arrow keys or W/S)
-      if (cursors.up.isDown || (wasd && wasd.W.isDown)) {
-        velocityY = -speed;
-        moved = true;
-      } else if (cursors.down.isDown || (wasd && wasd.S.isDown)) {
-        velocityY = speed;
-        moved = true;
+      // Only process movement if chat input is not focused
+      if (!chatInputFocusedRef.current) {
+        // Handle horizontal movement (Arrow keys or A/D)
+        if (cursors.left.isDown || (wasd && wasd.A.isDown)) {
+          velocityX = -speed;
+          moved = true;
+        } else if (cursors.right.isDown || (wasd && wasd.D.isDown)) {
+          velocityX = speed;
+          moved = true;
+        }
+        
+        // Handle vertical movement (Arrow keys or W/S)
+        if (cursors.up.isDown || (wasd && wasd.W.isDown)) {
+          velocityY = -speed;
+          moved = true;
+        } else if (cursors.down.isDown || (wasd && wasd.S.isDown)) {
+          velocityY = speed;
+          moved = true;
+        }
+      } else {
+        // Chat is focused - force clear all key states and ensure no movement
+        if (cursors) {
+          cursors.left.isDown = false;
+          cursors.right.isDown = false;
+          cursors.up.isDown = false;
+          cursors.down.isDown = false;
+        }
+        if (wasd) {
+          wasd.A.isDown = false;
+          wasd.D.isDown = false;
+          wasd.W.isDown = false;
+          wasd.S.isDown = false;
+        }
+        if (spaceKey) {
+          spaceKey.isDown = false;
+        }
+        
+        velocityX = 0;
+        velocityY = 0;
+        moved = false;
       }
       
       // Apply velocities to the physics body
       if (currentPlayerSprite.container && currentPlayerSprite.container.body) {
+        // If chat is focused, force velocity to zero regardless of what was calculated above
+        if (chatInputFocusedRef.current) {
+          velocityX = 0;
+          velocityY = 0;
+          moved = false;
+        }
+        
         currentPlayerSprite.container.body.setVelocity(velocityX, velocityY);
         
         // Ensure player stays within playable bounds - character edges can reach boundaries
@@ -984,7 +1045,8 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
         phaserGame.current.scale.resize(window.innerWidth, window.innerHeight);
         
         // Update camera zoom and bounds based on new screen size
-        if (camera) {
+        if (gameScene.current && gameScene.current.cameras && gameScene.current.cameras.main) {
+          const camera = gameScene.current.cameras.main;
           const screenWidth = window.innerWidth;
           const screenHeight = window.innerHeight;
           
@@ -1003,7 +1065,9 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room }) => {
           camera.setZoom(zoom);
           
           // Update camera bounds to allow character edges to reach boundaries
-          camera.setBounds(boundaryMargin, boundaryMargin, playableWidth, playableHeight);
+          if (typeof boundaryMargin !== 'undefined' && typeof playableWidth !== 'undefined' && typeof playableHeight !== 'undefined') {
+            camera.setBounds(boundaryMargin, boundaryMargin, playableWidth, playableHeight);
+          }
         }
       }
     };

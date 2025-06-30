@@ -3,32 +3,27 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
 const userManager = require('./users');
 
-// JWT secret (in production, use a strong secret from environment variables)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
-
-// Configure Google OAuth Strategy
+// Configure Google OAuth strategy
 passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "/auth/google/callback"
-  },
-  async (accessToken, refreshToken, profile, done) => {
-    try {
-      // Create or update user
-      const user = userManager.createOrUpdateUser(profile);
-      return done(null, user);
-    } catch (error) {
-      return done(error, null);
-    }
+  clientID: process.env.GOOGLE_CLIENT_ID || 'REDACTED-GOOGLE-CLIENT-ID',
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET || 'REDACTED-GOOGLE-CLIENT-SECRET',
+  callbackURL: "/auth/google/callback"
+}, 
+async (accessToken, refreshToken, profile, done) => {
+  try {
+    // Create or update user
+    const user = userManager.createOrUpdateUser(profile);
+    return done(null, user);
+  } catch (error) {
+    return done(error, null);
   }
-));
+}));
 
-// Serialize user for session
+// Serialize/deserialize user for session
 passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
-// Deserialize user from session
 passport.deserializeUser((id, done) => {
   const user = userManager.getUser(id);
   done(null, user);
@@ -36,87 +31,54 @@ passport.deserializeUser((id, done) => {
 
 // Generate JWT token
 const generateToken = (user) => {
-  return jwt.sign(
-    { 
-      id: user.id, 
-      email: user.email, 
-      name: user.name
-    },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
+  const payload = {
+    id: user.id,
+    email: user.email,
+    name: user.name
+  };
+  
+  return jwt.sign(payload, process.env.JWT_SECRET || 'social-jwt-secret', {
+    expiresIn: '24h'
+  });
 };
 
-// Verify JWT token
+// Middleware to verify JWT token
 const verifyToken = (token) => {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, process.env.JWT_SECRET || 'social-jwt-secret');
   } catch (error) {
-    return null;
+    throw new Error('Invalid token');
   }
 };
 
-// Middleware to check if user is authenticated
+// Authentication middleware
 const isAuthenticated = (req, res, next) => {
-  // Check session first
-  if (req.isAuthenticated()) {
-    return next();
-  }
-
-  // Check JWT token from Authorization header
   const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  const token = authHeader.substring(7);
+  
+  try {
     const decoded = verifyToken(token);
-    if (decoded) {
-      const user = userManager.getUser(decoded.id);
-      if (user) {
-        req.user = user;
-        return next();
-      }
+    const user = userManager.getUser(decoded.id);
+    
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
     }
+    
+    req.user = user;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid token' });
   }
-
-  res.status(401).json({ error: 'Authentication required' });
-};
-
-// Middleware to check if user is premium
-const isPremium = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-  if (!req.user.isPremium) {
-    return res.status(403).json({ error: 'Premium subscription required' });
-  }
-
-  next();
-};
-
-// Middleware to check video call limits
-const checkVideoCallLimit = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-  if (!userManager.canMakeVideoCall(req.user.id)) {
-    const remaining = userManager.getRemainingVideoCalls(req.user.id);
-    return res.status(429).json({ 
-      error: 'Video call limit exceeded',
-      remaining,
-      limit: req.user.videoCallLimit,
-      isPremium: req.user.isPremium
-    });
-  }
-
-  next();
 };
 
 module.exports = {
   passport,
   generateToken,
   verifyToken,
-  isAuthenticated,
-  isPremium,
-  checkVideoCallLimit
+  isAuthenticated
 }; 

@@ -65,6 +65,33 @@ export const AuthProvider = ({ children }) => {
     window.location.href = 'http://localhost:3001/auth/google';
   };
 
+  const loginAsGuest = async (guestName) => {
+    try {
+      const response = await fetch('http://localhost:3001/auth/guest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ guestName })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('authToken', data.token);
+        setToken(data.token);
+        setUser(data.user);
+        return true;
+      } else {
+        const error = await response.json();
+        console.error('Guest login failed:', error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Guest login error:', error);
+      return false;
+    }
+  };
+
   const logout = async () => {
     try {
       await fetch('http://localhost:3001/auth/logout', {
@@ -103,34 +130,14 @@ export const AuthProvider = ({ children }) => {
     return false;
   };
 
-  const getVideoCallLimits = async () => {
-    if (!token) return null;
-
-    try {
-      const response = await fetch('http://localhost:3001/api/video-calls/limits', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        return await response.json();
-      }
-    } catch (error) {
-      console.error('Failed to get video call limits:', error);
-    }
-    return null;
-  };
-
   const value = {
     user,
     loading,
     isAuthenticated: !!user,
     login,
+    loginAsGuest,
     logout,
     updatePreferences,
-    getVideoCallLimits,
     token
   };
 

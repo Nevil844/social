@@ -2,16 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import UserProfile, { UserAvatar } from './UserProfile';
 
-const Landing = ({ onJoinRoom }) => {
-  const { user, login, loginAsGuest, isAuthenticated, loading: authLoading } = useAuth();
+const RoomSelection = ({ onJoinRoom }) => {
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('join');
   const [publicRooms, setPublicRooms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [roomCode, setRoomCode] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [showProfile, setShowProfile] = useState(false);
-  const [showGuestLogin, setShowGuestLogin] = useState(false);
-  const [guestName, setGuestName] = useState('');
   const [createRoomData, setCreateRoomData] = useState({
     name: '',
     isPrivate: false,
@@ -110,7 +108,7 @@ const Landing = ({ onJoinRoom }) => {
         },
         body: JSON.stringify({
           ...createRoomData,
-          creatorId: 'temp-user-id'
+          creatorId: user.id
         }),
       });
 
@@ -176,21 +174,6 @@ const Landing = ({ onJoinRoom }) => {
     onJoinRoom(roomId, playerName);
   };
 
-  const handleGuestLogin = async () => {
-    if (!guestName.trim()) {
-      alert('Please enter a name');
-      return;
-    }
-
-    const success = await loginAsGuest(guestName.trim());
-    if (success) {
-      setShowGuestLogin(false);
-      setGuestName('');
-    } else {
-      alert('Failed to login as guest');
-    }
-  };
-
   return (
     <div className="min-h-screen animated-bg p-4 overflow-y-auto">
       {/* Background Animation */}
@@ -222,67 +205,27 @@ const Landing = ({ onJoinRoom }) => {
           </div>
           <p className="text-gray-300 text-sm sm:text-lg px-4">Connect, collaborate, and chat in beautiful virtual spaces</p>
           
-          {/* Authentication Section */}
-          <div className="mt-6 flex flex-col items-center space-y-4">
-            {authLoading ? (
-              <div className="text-gray-400">Loading...</div>
-            ) : isAuthenticated ? (
-              <div className="flex items-center space-x-3">
-                <UserAvatar user={user} size="sm" />
-                <span className="text-gray-200 font-medium">
-                  {user?.name}
-                  {user?.isGuest && <span className="text-gray-400 text-sm ml-1">(Guest)</span>}
-                </span>
-                <button
-                  onClick={() => setShowProfile(true)}
-                  className="px-4 py-2 bg-purple-600/20 text-purple-300 rounded-lg hover:bg-purple-600/30 transition-colors border border-purple-500/30"
-                >
-                  Profile
-                </button>
-              </div>
-            ) : showGuestLogin ? (
-              <div className="flex flex-col items-center space-y-3 w-full max-w-sm">
-                <input
-                  type="text"
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  placeholder="Enter your name..."
-                  className="w-full px-4 py-3 rounded-xl text-gray-800 placeholder-gray-500 border-0 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                  onKeyPress={(e) => e.key === 'Enter' && handleGuestLogin()}
-                />
-                <div className="flex space-x-3 w-full">
-                  <button
-                    onClick={handleGuestLogin}
-                    disabled={!guestName.trim()}
-                    className="flex-1 btn-primary px-4 py-3 disabled:opacity-50"
-                  >
-                    Continue as Guest
-                  </button>
-                  <button
-                    onClick={() => setShowGuestLogin(false)}
-                    className="px-4 py-3 bg-gray-600/20 text-gray-300 rounded-lg hover:bg-gray-600/30 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center space-y-3">
-                <button
-                  onClick={login}
-                  className="btn-primary px-6 py-3"
-                >
-                  Sign in with Google
-                </button>
-                <div className="text-gray-400 text-sm">or</div>
-                <button
-                  onClick={() => setShowGuestLogin(true)}
-                  className="px-6 py-3 bg-gray-600/20 text-gray-300 rounded-lg hover:bg-gray-600/30 transition-colors border border-gray-500/30"
-                >
-                  Continue as Guest
-                </button>
-              </div>
-            )}
+          {/* User Section */}
+          <div className="mt-6 flex justify-center items-center space-x-4">
+            <div className="flex items-center space-x-3">
+              <UserAvatar user={user} size="sm" />
+              <span className="text-gray-200 font-medium">
+                {user?.name}
+                {user?.isGuest && <span className="text-gray-400 text-sm ml-1">(Guest)</span>}
+              </span>
+              <button
+                onClick={() => setShowProfile(true)}
+                className="px-4 py-2 bg-purple-600/20 text-purple-300 rounded-lg hover:bg-purple-600/30 transition-colors border border-purple-500/30"
+              >
+                Profile
+              </button>
+              <button
+                onClick={logout}
+                className="px-4 py-2 bg-red-600/20 text-red-300 rounded-lg hover:bg-red-600/30 transition-colors border border-red-500/30"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
 
@@ -453,19 +396,27 @@ const Landing = ({ onJoinRoom }) => {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Privacy</label>
-                        <select
-                          value={createRoomData.isPrivate ? 'private' : 'public'}
-                          onChange={(e) => setCreateRoomData(prev => ({ ...prev, isPrivate: e.target.value === 'private' }))}
-                          className="w-full input-dark rounded-xl"
-                        >
-                          <option value="public">Public</option>
-                          <option value="private">Private</option>
-                        </select>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Map Type</label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {mapTypes.map(map => (
+                          <button
+                            key={map.id}
+                            onClick={() => setCreateRoomData(prev => ({ ...prev, mapType: map.id }))}
+                            className={`p-3 rounded-lg border-2 transition-all ${
+                              createRoomData.mapType === map.id
+                                ? 'border-purple-500 bg-purple-500/20'
+                                : 'border-gray-600 hover:border-gray-500'
+                            }`}
+                          >
+                            <div className="text-2xl mb-1">{map.preview}</div>
+                            <div className="text-sm font-medium text-gray-200">{map.name}</div>
+                          </button>
+                        ))}
                       </div>
+                    </div>
 
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Max Players</label>
                         <select
@@ -473,44 +424,32 @@ const Landing = ({ onJoinRoom }) => {
                           onChange={(e) => setCreateRoomData(prev => ({ ...prev, maxPlayers: parseInt(e.target.value) }))}
                           className="w-full input-dark rounded-xl"
                         >
+                          <option value={5}>5 players</option>
                           <option value={10}>10 players</option>
                           <option value={20}>20 players</option>
                           <option value={50}>50 players</option>
-                          <option value={100}>100 players</option>
                         </select>
                       </div>
-                    </div>
 
-                    {/* Map Selection */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-4">Choose Map</label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                        {mapTypes.map(map => (
-                          <button
-                            key={map.id}
-                            onClick={() => setCreateRoomData(prev => ({ ...prev, mapType: map.id }))}
-                            className={`p-3 sm:p-4 rounded-xl border-2 transition-all hover:shadow-md ${
-                              createRoomData.mapType === map.id
-                                ? 'border-purple-500 bg-purple-500/20 ring-2 ring-purple-500/30'
-                                : 'border-gray-600 hover:border-gray-500'
-                            }`}
-                          >
-                            <div className={`h-12 sm:h-16 bg-gradient-to-r ${map.color} rounded-lg flex items-center justify-center text-xl sm:text-2xl mb-2`}>
-                              {map.preview}
-                            </div>
-                            <h4 className="font-medium text-xs sm:text-sm text-gray-200">{map.name}</h4>
-                            <p className="text-xs text-gray-400 mt-1 hidden sm:block">{map.description}</p>
-                          </button>
-                        ))}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Privacy</label>
+                        <select
+                          value={createRoomData.isPrivate}
+                          onChange={(e) => setCreateRoomData(prev => ({ ...prev, isPrivate: e.target.value === 'true' }))}
+                          className="w-full input-dark rounded-xl"
+                        >
+                          <option value={false}>Public</option>
+                          <option value={true}>Private</option>
+                        </select>
                       </div>
                     </div>
 
                     <button
                       onClick={handleCreateRoom}
                       disabled={loading || !createRoomData.name.trim() || !playerName.trim()}
-                      className="w-full btn-primary py-3 sm:py-4 text-base sm:text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full btn-primary py-4 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {loading ? 'Creating Room...' : 'Create & Join Room'}
+                      {loading ? 'Creating...' : `Create ${createRoomData.isPrivate ? 'Private' : 'Public'} Room`}
                     </button>
                   </div>
                 )}
@@ -518,17 +457,17 @@ const Landing = ({ onJoinRoom }) => {
             )}
           </div>
         </div>
-
-        {/* Footer */}
-        <div className="text-center mt-8 text-gray-400">
-          <p className="text-sm">Built with React, Phaser.js, and Socket.IO</p>
-        </div>
       </div>
 
-      {/* User Profile Modal */}
-      <UserProfile isOpen={showProfile} onClose={() => setShowProfile(false)} />
+      {/* Profile Modal */}
+      {showProfile && user && (
+        <UserProfile 
+          user={user} 
+          onClose={() => setShowProfile(false)} 
+        />
+      )}
     </div>
   );
 };
 
-export default Landing; 
+export default RoomSelection; 

@@ -1,9 +1,9 @@
-// In-memory user storage (in production, use a database)
-const users = new Map();
+// Simple in-memory user management
+// In production, this should be replaced with a proper database
 
 class UserManager {
   constructor() {
-    this.users = users;
+    this.users = new Map();
   }
 
   // Create or update user from Google OAuth
@@ -17,9 +17,6 @@ class UserManager {
       picture: googleProfile.photos[0]?.value,
       createdAt: new Date(),
       lastLogin: new Date(),
-      videoCallMinutes: 0,
-      videoCallLimit: 20, // 20 minutes per day
-      lastVideoCallReset: new Date().toDateString(),
       preferences: {
         defaultMap: 'office',
         defaultMaxPlayers: 20,
@@ -27,21 +24,11 @@ class UserManager {
       }
     };
 
-    // If user exists, update last login and check video call limits
+    // If user exists, update last login and preserve existing data
     if (this.users.has(userId)) {
       const existingUser = this.users.get(userId);
       user.createdAt = existingUser.createdAt;
-      user.videoCallMinutes = existingUser.videoCallMinutes;
-      user.videoCallLimit = existingUser.videoCallLimit;
-      user.lastVideoCallReset = existingUser.lastVideoCallReset;
       user.preferences = existingUser.preferences;
-      
-      // Reset video call minutes if it's a new day
-      const today = new Date().toDateString();
-      if (user.lastVideoCallReset !== today) {
-        user.videoCallMinutes = 0;
-        user.lastVideoCallReset = today;
-      }
     }
 
     this.users.set(userId, user);
@@ -63,55 +50,15 @@ class UserManager {
     return null;
   }
 
-  // Increment video call minutes
-  incrementVideoCallMinutes(userId, minutes = 1) {
-    const user = this.users.get(userId);
-    if (user) {
-      user.videoCallMinutes += minutes;
-      this.users.set(userId, user);
-      return user.videoCallMinutes;
-    }
-    return 0;
-  }
-
-  // Check if user can make video calls
-  canMakeVideoCall(userId) {
-    const user = this.users.get(userId);
-    if (!user) return false;
-
-    // Check daily limit
-    const today = new Date().toDateString();
-    if (user.lastVideoCallReset !== today) {
-      user.videoCallMinutes = 0;
-      user.lastVideoCallReset = today;
-      this.users.set(userId, user);
-    }
-
-    return user.videoCallMinutes < user.videoCallLimit;
-  }
-
-  // Get remaining video call minutes
-  getRemainingVideoCallMinutes(userId) {
-    const user = this.users.get(userId);
-    if (!user) return 0;
-
-    const today = new Date().toDateString();
-    if (user.lastVideoCallReset !== today) {
-      return user.videoCallLimit;
-    }
-
-    return Math.max(0, user.videoCallLimit - user.videoCallMinutes);
-  }
-
   // Update user preferences
-  updatePreferences(userId, preferences) {
+  updateUserPreferences(userId, preferences) {
     const user = this.users.get(userId);
     if (user) {
       user.preferences = { ...user.preferences, ...preferences };
       this.users.set(userId, user);
-      return true;
+      return user;
     }
-    return false;
+    return null;
   }
 
   // Get all users (for admin purposes)
@@ -122,6 +69,17 @@ class UserManager {
   // Delete user
   deleteUser(userId) {
     return this.users.delete(userId);
+  }
+
+  // Get user count
+  getUserCount() {
+    return this.users.size;
+  }
+
+  // Create or update guest user
+  createOrUpdateGuestUser(guestUser) {
+    this.users.set(guestUser.id, guestUser);
+    return guestUser;
   }
 }
 
