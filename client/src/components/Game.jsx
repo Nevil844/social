@@ -1,11 +1,37 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
+import MobileControls from './MobileControls';
 
 const Game = ({ currentPlayer, allPlayers, onPlayerMove, room, isChatInputFocused }) => {
   const gameRef = useRef();
   const phaserGame = useRef();
   const gameScene = useRef();
   const chatInputFocusedRef = useRef(false);
+  
+  // Mobile controls state
+  const [mobileMovement, setMobileMovement] = useState({ x: 0, y: 0 });
+  const [tapToMoveTarget, setTapToMoveTarget] = useState(null);
+  const mobileMovementRef = useRef({ x: 0, y: 0 });
+  const tapToMoveTargetRef = useRef(null);
+  const lastTapTimeRef = useRef(0);
+
+  // Update refs when state changes
+  useEffect(() => {
+    mobileMovementRef.current = mobileMovement;
+  }, [mobileMovement]);
+
+  useEffect(() => {
+    tapToMoveTargetRef.current = tapToMoveTarget;
+  }, [tapToMoveTarget]);
+
+  // Handle mobile movement from joystick
+  const handleMobileMove = (x, y, type) => {
+    if (type === 'joystick') {
+      setMobileMovement({ x, y });
+      // Clear tap-to-move when using joystick
+      setTapToMoveTarget(null);
+    }
+  };
 
   // Update chat focus ref when prop changes
   useEffect(() => {
@@ -263,7 +289,64 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room, isChatInputFocuse
       // Configure physics world bounds to match playable area boundaries
       this.physics.world.setBounds(boundaryMargin, boundaryMargin, playableWidth, playableHeight);
       
-      // No global key blocking needed - we'll handle this in the game update loop only
+      // Add touch/pointer support for mobile tap-to-move
+      this.input.on('pointerdown', (pointer) => {
+        // Only handle tap-to-move if not interacting with UI elements
+        if (!chatInputFocusedRef.current && pointer.leftButtonDown()) {
+          const currentTime = Date.now();
+          const timeSinceLastTap = currentTime - lastTapTimeRef.current;
+          
+          // Check for double-tap (within 300ms)
+          if (timeSinceLastTap < 300) {
+            // Double tap - stop all movement
+            setTapToMoveTarget(null);
+            setMobileMovement({ x: 0, y: 0 });
+            
+            // Visual feedback for stop
+            const stopIndicator = this.add.circle(pointer.worldX, pointer.worldY, 12, 0xff0000, 0.8);
+            this.tweens.add({
+              targets: stopIndicator,
+              scaleX: 2,
+              scaleY: 2,
+              alpha: 0,
+              duration: 300,
+              ease: 'Power2',
+              onComplete: () => stopIndicator.destroy()
+            });
+            
+            lastTapTimeRef.current = 0; // Reset to prevent triple-tap issues
+            return;
+          }
+          
+          lastTapTimeRef.current = currentTime;
+          
+          // Convert pointer coordinates to world coordinates
+          const worldX = pointer.worldX;
+          const worldY = pointer.worldY;
+          
+          // Check if tap is within playable bounds
+          if (worldX >= boundaryMargin && worldX <= boundaryMargin + playableWidth &&
+              worldY >= boundaryMargin && worldY <= boundaryMargin + playableHeight) {
+            
+            // Set tap-to-move target
+            setTapToMoveTarget({ x: worldX, y: worldY });
+            // Clear joystick movement when using tap-to-move
+            setMobileMovement({ x: 0, y: 0 });
+            
+            // Visual feedback - create a temporary target indicator
+            const targetIndicator = this.add.circle(worldX, worldY, 8, 0xffffff, 0.8);
+            this.tweens.add({
+              targets: targetIndicator,
+              scaleX: 1.5,
+              scaleY: 1.5,
+              alpha: 0,
+              duration: 500,
+              ease: 'Power2',
+              onComplete: () => targetIndicator.destroy()
+            });
+          }
+        }
+      });
       
       // Create current player
       if (currentPlayer) {
@@ -1047,11 +1130,9 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room, isChatInputFocuse
       const wasd = gameScene.current?.wasd;
       const spaceKey = gameScene.current?.spaceKey;
       
-      // Movement is disabled when chat is focused
-      
       // Only process movement if chat input is not focused
       if (!chatInputFocusedRef.current) {
-        // Handle horizontal movement (Arrow keys or A/D)
+        // Handle keyboard movement (Arrow keys or WASD)
         if (cursors.left.isDown || (wasd && wasd.A.isDown)) {
           velocityX = -speed;
           moved = true;
@@ -1060,7 +1141,6 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room, isChatInputFocuse
           moved = true;
         }
         
-        // Handle vertical movement (Arrow keys or W/S)
         if (cursors.up.isDown || (wasd && wasd.W.isDown)) {
           velocityY = -speed;
           moved = true;
@@ -1068,8 +1148,38 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room, isChatInputFocuse
           velocityY = speed;
           moved = true;
         }
+        
+        // Handle mobile joystick movement (only if no keyboard input)
+        const mobileMove = mobileMovementRef.current;
+        if (!moved && (Math.abs(mobileMove.x) > 0.1 || Math.abs(mobileMove.y) > 0.1)) {
+          velocityX = mobileMove.x * speed * 0.8; // Slightly slower for mobile
+          velocityY = mobileMove.y * speed * 0.8;
+          moved = true;
+        }
+        
+        // Handle tap-to-move (only if no other movement)
+        const tapTarget = tapToMoveTargetRef.current;
+        if (!moved && tapTarget && currentPlayerSprite.container) {
+          const currentX = currentPlayerSprite.container.x;
+          const currentY = currentPlayerSprite.container.y;
+          const deltaX = tapTarget.x - currentX;
+          const deltaY = tapTarget.y - currentY;
+          const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+          
+          // If close enough to target, stop moving
+          if (distance < 10) {
+            setTapToMoveTarget(null);
+          } else {
+            // Move toward target
+            const normalizedX = deltaX / distance;
+            const normalizedY = deltaY / distance;
+            velocityX = normalizedX * speed * 0.9; // Slightly slower for precision
+            velocityY = normalizedY * speed * 0.9;
+            moved = true;
+          }
+        }
       } else {
-        // Chat is focused - force clear all key states and ensure no movement
+        // Chat is focused - force clear all states and ensure no movement
         if (cursors) {
           cursors.left.isDown = false;
           cursors.right.isDown = false;
@@ -1085,6 +1195,10 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room, isChatInputFocuse
         if (spaceKey) {
           spaceKey.isDown = false;
         }
+        
+        // Clear mobile movement states
+        setMobileMovement({ x: 0, y: 0 });
+        setTapToMoveTarget(null);
         
         velocityX = 0;
         velocityY = 0;
@@ -1215,7 +1329,15 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room, isChatInputFocuse
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  return <div ref={gameRef} className="w-full h-full fixed inset-0" />;
+  return (
+    <>
+      <div ref={gameRef} className="w-full h-full fixed inset-0" />
+      <MobileControls 
+        onMove={handleMobileMove}
+        isEnabled={!chatInputFocusedRef.current && !!currentPlayer}
+      />
+    </>
+  );
 };
 
 export default Game; 

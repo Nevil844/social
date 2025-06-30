@@ -271,76 +271,84 @@ function AppContent() {
 
       {/* Collapsible Header */}
       {showHeader && (
-        <div className="fixed top-0 left-0 right-0 z-40 glass-card text-white shadow-2xl border-b border-purple-500/20 transform transition-transform duration-300">
-          <div className="px-6 py-4 flex justify-between items-center">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+        <div className="fixed top-0 left-0 right-0 z-40 bg-black/80 backdrop-blur-md text-white shadow-2xl border-b border-purple-500/20 transition-all duration-300">
+          <div className="px-3 py-3 sm:px-4">
+            {/* Top Row - Logo and Close Button */}
+            <div className="flex justify-between items-center mb-3">
+              {/* App Logo and Room Info */}
+              <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="text-white font-bold text-sm">S</span>
                 </div>
-                <div>
-                  <h1 className="text-lg font-bold gradient-text">
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-base sm:text-lg font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                     Social
                   </h1>
                   {currentRoom && (
-                    <p className="text-xs text-gray-300">{currentRoom.name} • {getMapDisplayName(currentRoom.mapType)}</p>
+                    <p className="text-xs text-gray-300 truncate">{currentRoom.name} • {getMapDisplayName(currentRoom.mapType)}</p>
                   )}
                 </div>
               </div>
+
+              {/* Close Header Button */}
+              <button
+                onClick={() => setShowHeader(false)}
+                className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-white/10 transition-all duration-200 flex-shrink-0"
+                title="Hide Header (Esc)"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
             </div>
 
-            {/* Connection Status */}
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${getConnectionStatusColor()} ${isConnected ? 'animate-pulse' : ''}`}></div>
-              <span className="text-sm text-gray-300 capitalize">{connectionStatus}</span>
-            </div>
-
-            {/* Online Players Count */}
-            <div className="bg-white/10 rounded-full px-3 py-1">
-              <span className="text-sm text-gray-200">{allPlayers.length} online</span>
-            </div>
-
-            {/* Room Code Display */}
-            {currentRoom?.code && (
-              <div className="bg-purple-500/30 text-purple-200 rounded-full px-3 py-1">
-                <span className="text-sm font-medium">Code: {currentRoom.code}</span>
+            {/* Status Row - Connection, Players, Room Code */}
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              {/* Connection Status */}
+              <div className="flex items-center space-x-1.5 bg-white/5 rounded-full px-2 py-1">
+                <div className={`w-2 h-2 rounded-full ${getConnectionStatusColor()} ${isConnected ? 'animate-pulse' : ''}`}></div>
+                <span className="text-xs text-gray-300 capitalize">{connectionStatus}</span>
               </div>
-            )}
-          </div>
-          
-          <div className="flex items-center space-x-3">
-            {currentPlayer && (
-              <div className="flex items-center space-x-2 bg-white/10 rounded-full px-4 py-2 shadow-sm">
-                <UserAvatar 
-                  user={{ 
-                    name: currentPlayer.name, 
-                    picture: currentPlayer.picture 
-                  }} 
-                  size="sm" 
-                />
-                <span className="text-sm font-medium text-gray-200">{currentPlayer.name}</span>
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+
+              {/* Online Players Count */}
+              <div className="bg-green-500/20 text-green-300 rounded-full px-2.5 py-1">
+                <span className="text-xs font-medium">{allPlayers.length} online</span>
               </div>
-            )}
+
+              {/* Room Code Display */}
+              {currentRoom?.code && (
+                <div className="bg-purple-500/20 text-purple-300 rounded-full px-2.5 py-1">
+                  <span className="text-xs font-medium">Code: {currentRoom.code}</span>
+                </div>
+              )}
+            </div>
             
-            {/* Leave Room Button */}
-            <button
-              onClick={handleLeaveRoom}
-              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-lg"
-            >
-              Leave Room
-            </button>
-
-            {/* Close Header Button */}
-            <button
-              onClick={() => setShowHeader(false)}
-              className="text-gray-400 hover:text-white p-1"
-              title="Hide Header (Esc)"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
-              </svg>
-            </button>
+            {/* Bottom Row - User Info and Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-white/10">
+              <div className="flex items-center space-x-2 flex-1 min-w-0">
+                {currentPlayer && (
+                  <div className="flex items-center space-x-2 bg-white/10 rounded-full px-2.5 py-1.5 min-w-0">
+                    <UserAvatar 
+                      user={{ 
+                        name: currentPlayer.name, 
+                        picture: currentPlayer.picture 
+                      }} 
+                      size="sm" 
+                    />
+                    <span className="text-xs sm:text-sm font-medium text-gray-200 truncate">{currentPlayer.name}</span>
+                    <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0"></div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Leave Room Button */}
+              <button
+                onClick={handleLeaveRoom}
+                className="bg-red-500/80 hover:bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 hover:shadow-lg flex-shrink-0 ml-2"
+              >
+                Leave
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -395,8 +403,8 @@ function AppContent() {
         />
       )}
 
-      {/* Floating Instructions */}
-      <div className="fixed bottom-6 left-6 glass-card text-white p-4 rounded-xl text-sm max-w-xs shadow-2xl">
+      {/* Floating Instructions - Only show on desktop */}
+      <div className="hidden md:block fixed bottom-6 left-6 bg-black/60 backdrop-blur-md text-white p-4 rounded-xl text-sm max-w-xs shadow-2xl border border-white/10">
         <div className="flex items-center space-x-2 mb-3">
           <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
             <span className="text-xs">?</span>
@@ -406,7 +414,7 @@ function AppContent() {
         <div className="space-y-2 text-xs text-gray-200">
           <div className="flex items-center space-x-2">
             <span className="text-purple-300">⌨️</span>
-            <span>Arrow keys to move</span>
+            <span>Arrow keys or WASD to move</span>
           </div>
           <div className="flex items-center space-x-2">
             <span className="text-purple-300">H</span>
