@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import UserProfile, { UserAvatar } from './UserProfile';
+import UserProfile from './UserProfile';
 
 const Landing = ({ onJoinRoom }) => {
   const { user, login, loginAsGuest, isAuthenticated, loading: authLoading } = useAuth();
@@ -193,6 +193,19 @@ const Landing = ({ onJoinRoom }) => {
 
   return (
     <div className="min-h-screen animated-bg p-4 overflow-y-auto">
+      {/* Profile Button - Top Right (only show when authenticated) */}
+      {isAuthenticated && (
+        <button
+          onClick={() => setShowProfile(true)}
+          className="fixed top-4 right-4 z-50 w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+          title="Profile"
+        >
+          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+          </svg>
+        </button>
+      )}
+
       {/* Background Animation */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         {[...Array(30)].map((_, i) => (
@@ -227,19 +240,7 @@ const Landing = ({ onJoinRoom }) => {
             {authLoading ? (
               <div className="text-gray-400">Loading...</div>
             ) : isAuthenticated ? (
-              <div className="flex items-center space-x-3">
-                <UserAvatar user={user} size="sm" />
-                <span className="text-gray-200 font-medium">
-                  {user?.name}
-                  {user?.isGuest && <span className="text-gray-400 text-sm ml-1">(Guest)</span>}
-                </span>
-                <button
-                  onClick={() => setShowProfile(true)}
-                  className="px-4 py-2 bg-purple-600/20 text-purple-300 rounded-lg hover:bg-purple-600/30 transition-colors border border-purple-500/30"
-                >
-                  Profile
-                </button>
-              </div>
+              <div className="text-gray-400 text-sm">Welcome back!</div>
             ) : showGuestLogin ? (
               <div className="flex flex-col items-center space-y-3 w-full max-w-sm">
                 <input
