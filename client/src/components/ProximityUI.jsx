@@ -39,14 +39,12 @@ const ProximityUI = ({ nearbyPlayers, onSendMessage, messages, currentPlayer, on
 
   // Handle chat input focus changes
   const handleChatInputFocus = () => {
-    console.log('Chat input focused - disabling movement');
     if (onChatFocusChange) {
       onChatFocusChange(true);
     }
   };
 
   const handleChatInputBlur = () => {
-    console.log('Chat input blurred - enabling movement');
     if (onChatFocusChange) {
       onChatFocusChange(false);
     }
@@ -202,9 +200,8 @@ const ProximityUI = ({ nearbyPlayers, onSendMessage, messages, currentPlayer, on
                   onChange={(e) => setChatMessage(e.target.value)}
                   onFocus={handleChatInputFocus}
                   onBlur={handleChatInputBlur}
-
                   placeholder="Type a message..."
-                  className="flex-1 bg-gray-800 text-white px-3 py-2 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="flex-1 bg-gray-800 text-white px-3 py-2 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 proximity-chat-input"
                 />
                 <button
                   type="submit"

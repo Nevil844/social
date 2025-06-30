@@ -9,9 +9,151 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room, isChatInputFocuse
 
   // Update chat focus ref when prop changes
   useEffect(() => {
-    console.log('Chat input focus changed:', isChatInputFocused);
     chatInputFocusedRef.current = isChatInputFocused;
+    
+    // Disable/enable Phaser's keyboard input based on chat focus
+    if (gameScene.current && gameScene.current.input && gameScene.current.input.keyboard) {
+      if (isChatInputFocused) {
+        // Disable Phaser keyboard input when chat is focused
+        gameScene.current.input.keyboard.enabled = false;
+      } else {
+        // Re-enable Phaser keyboard input when chat is not focused
+        gameScene.current.input.keyboard.enabled = true;
+      }
+    }
   }, [isChatInputFocused]);
+
+  // Function to determine if a key should be intercepted for chat
+  const shouldInterceptKey = (e) => {
+    // Don't intercept if any modifier keys are pressed (Ctrl, Alt, Meta)
+    if (e.ctrlKey || e.altKey || e.metaKey) return false;
+    
+    // Don't intercept navigation keys (but allow arrow keys when focused in chat input)
+    if (['Tab', 'Escape'].includes(e.key)) return false;
+    
+    // Allow arrow keys for text navigation within chat
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return true;
+    
+    // Allow Enter for form submission
+    if (e.key === 'Enter') return true;
+    
+    // Intercept all printable characters
+    if (e.key.length === 1) return true;
+    
+    // Intercept common editing keys
+    if (['Backspace', 'Delete', ' '].includes(e.key)) return true;
+    
+    return false;
+  };
+
+  // Add DOM-level key capture for ALL keys when chat is focused
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Handle ALL printable keys when chat is focused
+      if (chatInputFocusedRef.current && shouldInterceptKey(e)) {
+        
+        // Find the chat input element (ProximityUI chat input)
+        const chatInput = document.querySelector('input[placeholder="Type a message..."]') || 
+                         document.querySelector('input[placeholder*="message" i]') ||
+                         document.querySelector('.proximity-chat-input') ||
+                         document.querySelector('input[type="text"]');
+        
+        if (chatInput) {
+          // Stop the event from reaching Phaser
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          
+          // Focus the chat input if it's not already focused
+          if (document.activeElement !== chatInput) {
+            chatInput.focus();
+          }
+          
+          // Handle different types of key inputs
+          const currentValue = chatInput.value;
+          const cursorPos = chatInput.selectionStart || 0;
+          const selectionEnd = chatInput.selectionEnd || cursorPos;
+          let newValue = currentValue;
+          let newCursorPos = cursorPos;
+          
+          if (e.key === 'Backspace') {
+            // Remove character before cursor or selected text
+            if (cursorPos !== selectionEnd) {
+              // Remove selected text
+              newValue = currentValue.slice(0, cursorPos) + currentValue.slice(selectionEnd);
+              newCursorPos = cursorPos;
+            } else if (cursorPos > 0) {
+              // Remove character before cursor
+              newValue = currentValue.slice(0, cursorPos - 1) + currentValue.slice(cursorPos);
+              newCursorPos = cursorPos - 1;
+            }
+          } else if (e.key === 'Delete') {
+            // Remove character after cursor or selected text
+            if (cursorPos !== selectionEnd) {
+              // Remove selected text
+              newValue = currentValue.slice(0, cursorPos) + currentValue.slice(selectionEnd);
+              newCursorPos = cursorPos;
+            } else if (cursorPos < currentValue.length) {
+              // Remove character after cursor
+              newValue = currentValue.slice(0, cursorPos) + currentValue.slice(cursorPos + 1);
+              newCursorPos = cursorPos;
+            }
+          } else if (e.key === 'ArrowLeft') {
+            // Move cursor left
+            newCursorPos = Math.max(0, cursorPos - 1);
+            newValue = currentValue; // No change to value
+          } else if (e.key === 'ArrowRight') {
+            // Move cursor right
+            newCursorPos = Math.min(currentValue.length, cursorPos + 1);
+            newValue = currentValue; // No change to value
+          } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            // Move to start/end for single-line input
+            newCursorPos = e.key === 'ArrowUp' ? 0 : currentValue.length;
+            newValue = currentValue; // No change to value
+          } else if (e.key === 'Enter') {
+            // Submit the form - find and click the send button
+            const form = chatInput.closest('form');
+            const sendButton = form?.querySelector('button[type="submit"]') || 
+                              form?.querySelector('button:not([type])');
+            
+            if (sendButton && !sendButton.disabled) {
+              sendButton.click();
+            } else if (form) {
+              form.dispatchEvent(new Event('submit', { bubbles: true }));
+            }
+            return; // Don't update input, form will handle it
+          } else if (e.key.length === 1 || e.key === ' ') {
+            // Insert printable character or space
+            const charToInsert = e.key === ' ' ? ' ' : e.key;
+            newValue = currentValue.slice(0, cursorPos) + charToInsert + currentValue.slice(selectionEnd);
+            newCursorPos = cursorPos + 1;
+          }
+          
+          // Update the input value and trigger React's onChange
+          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+          nativeInputValueSetter.call(chatInput, newValue);
+          
+          // Set cursor position
+          chatInput.selectionStart = chatInput.selectionEnd = newCursorPos;
+          
+          // Create a proper React synthetic event
+          const event = new Event('input', { bubbles: true });
+          Object.defineProperty(event, 'target', { writable: false, value: chatInput });
+          Object.defineProperty(event, 'currentTarget', { writable: false, value: chatInput });
+          
+          // Dispatch the event to trigger React's onChange
+          chatInput.dispatchEvent(event);
+        }
+      }
+    };
+
+    // Add event listener with capture to intercept before Phaser
+    document.addEventListener('keydown', handleKeyDown, true);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, []);
 
   useEffect(() => {
     // Game configuration - Full screen responsive
@@ -905,10 +1047,7 @@ const Game = ({ currentPlayer, allPlayers, onPlayerMove, room, isChatInputFocuse
       const wasd = gameScene.current?.wasd;
       const spaceKey = gameScene.current?.spaceKey;
       
-      // Only log occasionally to avoid spam
-      if (chatInputFocusedRef.current && Date.now() % 1000 < 16) {
-        console.log('💬 Chat focused - movement disabled');
-      }
+      // Movement is disabled when chat is focused
       
       // Only process movement if chat input is not focused
       if (!chatInputFocusedRef.current) {
