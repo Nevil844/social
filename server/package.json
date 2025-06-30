@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "test-video": "node test-video-api.js"
+    "test-video": "node test-video-api.js",
+    "who": "node check-users.js",
+    "recent": "node check-users.js recent",
+    "logs": "node check-users.js help"
   },
   "dependencies": {
     "express": "^4.18.2",

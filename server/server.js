@@ -8,6 +8,7 @@ const fs = require('fs');
 
 const userManager = require('./users');
 const { passport, generateToken, isAuthenticated } = require('./auth');
+const { logger, getUserLoginHistory, getActiveUsers } = require('./logger');
 
 const app = express();
 const server = http.createServer(app);
@@ -130,9 +131,21 @@ app.get('/auth/google/callback',
   async (req, res) => {
     try {
       const token = generateToken(req.user);
+      
+      // Log successful Google OAuth login
+      logger.user('LOGIN', `Google OAuth user logged in: ${req.user.name}`, {
+        userId: req.user.id,
+        name: req.user.name,
+        email: req.user.email,
+        loginMethod: 'Google OAuth',
+        isGuest: false,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip || req.connection.remoteAddress
+      });
+      
       res.redirect(`http://localhost:5173?token=${token}`);
     } catch (error) {
-      console.error('Auth callback error:', error);
+      logger.error('AUTH', 'Google OAuth callback error', { error: error.message });
       res.redirect('/login?error=auth_failed');
     }
   }
@@ -143,6 +156,7 @@ app.post('/auth/guest', (req, res) => {
   const { guestName } = req.body;
   
   if (!guestName || guestName.trim().length === 0) {
+    logger.warn('AUTH', 'Guest login attempt with empty name', { ip: req.ip });
     return res.status(400).json({ error: 'Guest name is required' });
   }
 
@@ -164,6 +178,17 @@ app.post('/auth/guest', (req, res) => {
   // Generate token
   const token = generateToken(guestUser);
   
+  // Log successful guest login
+  logger.user('LOGIN', `Guest user logged in: ${guestUser.name}`, {
+    userId: guestUser.id,
+    name: guestUser.name,
+    email: guestUser.email,
+    loginMethod: 'Guest',
+    isGuest: true,
+    userAgent: req.get('User-Agent'),
+    ip: req.ip || req.connection.remoteAddress
+  });
+  
   res.json({ 
     success: true, 
     token,
@@ -178,21 +203,92 @@ app.post('/auth/guest', (req, res) => {
 });
 
 app.get('/auth/logout', (req, res) => {
+  const userId = req.user?.id;
+  const userName = req.user?.name;
+  
   req.logout((err) => {
     if (err) {
-      console.error('Logout error:', err);
+      logger.error('AUTH', 'Logout error', { userId, error: err.message });
       return res.status(500).json({ error: 'Logout failed' });
     }
     req.session.destroy((err) => {
       if (err) {
-        console.error('Session destroy error:', err);
+        logger.error('AUTH', 'Session destroy error', { userId, error: err.message });
         return res.status(500).json({ error: 'Session cleanup failed' });
       }
+      
+      // Log successful logout
+      if (userId && userName) {
+        logger.user('LOGOUT', `User logged out: ${userName}`, {
+          userId,
+          name: userName,
+          ip: req.ip || req.connection.remoteAddress
+        });
+      }
+      
       res.clearCookie('connect.sid');
       res.json({ message: 'Logged out successfully' });
     });
   });
 });
+
+// Logging API Routes
+app.get('/api/logs/users', isAuthenticated, (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours) || 24;
+    const loginHistory = getUserLoginHistory(hours);
+    res.json(loginHistory);
+  } catch (error) {
+    logger.error('API', 'Failed to get user login history', { error: error.message });
+    res.status(500).json({ error: 'Failed to retrieve login history' });
+  }
+});
+
+app.get('/api/logs/active-users', isAuthenticated, (req, res) => {
+  try {
+    const activeUsers = getActiveUsers();
+    res.json(activeUsers);
+  } catch (error) {
+    logger.error('API', 'Failed to get active users', { error: error.message });
+    res.status(500).json({ error: 'Failed to retrieve active users' });
+  }
+});
+
+// Public endpoint to view active users (formatted for easy reading)
+app.get('/api/who-is-online', (req, res) => {
+  try {
+    const activeUsers = getActiveUsers();
+    const formatted = activeUsers.map(user => ({
+      name: user.name,
+      type: user.userType,
+      loginTime: new Date(user.loginTime).toLocaleString(),
+      timeAgo: getTimeAgo(user.loginTime)
+    }));
+    
+    res.json({
+      totalUsers: formatted.length,
+      users: formatted,
+      lastUpdated: new Date().toLocaleString()
+    });
+  } catch (error) {
+    logger.error('API', 'Failed to get online users', { error: error.message });
+    res.status(500).json({ error: 'Failed to retrieve online users' });
+  }
+});
+
+// Helper function to calculate time ago
+function getTimeAgo(timestamp) {
+  const now = new Date();
+  const loginTime = new Date(timestamp);
+  const diffMs = now - loginTime;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  return `${Math.floor(diffHours / 24)} day${Math.floor(diffHours / 24) > 1 ? 's' : ''} ago`;
+}
 
 // User API Routes
 app.get('/api/user/profile', isAuthenticated, (req, res) => {
@@ -360,7 +456,7 @@ app.get('/health', (req, res) => {
 });
 
 io.on('connection', (socket) => {
-  console.log(`User connected: ${socket.id}`);
+  logger.info('SOCKET', `User connected: ${socket.id}`, { socketId: socket.id });
 
   // Handle authentication
   socket.on('authenticate', (token) => {
@@ -455,11 +551,21 @@ io.on('connection', (socket) => {
         }
       });
 
-      console.log(`Player ${playerName} joined room ${roomId}`);
-    } catch (error) {
-      console.error('Error joining room:', error);
-      socket.emit('error', { message: 'Failed to join room' });
-    }
+      logger.room('JOIN', `Player ${playerName} joined room ${roomId}`, {
+      playerId: player.id,
+      playerName: playerName,
+      roomId: roomId,
+      roomName: room.name,
+      socketId: socket.id
+    });
+          } catch (error) {
+        logger.error('ROOM', 'Error joining room', { 
+          error: error.message, 
+          socketId: socket.id,
+          roomId: roomId
+        });
+        socket.emit('error', { message: 'Failed to join room' });
+      }
   });
 
   // Handle player movement
@@ -518,7 +624,12 @@ io.on('connection', (socket) => {
       }
     });
 
-    console.log(`Proximity message from ${player.name}: ${message}`);
+    logger.info('CHAT', `Proximity message from ${player.name}: ${message}`, {
+      playerId: player.id,
+      playerName: player.name,
+      roomId: player.roomId,
+      messageLength: message.length
+    });
   });
 
   // Handle disconnection
@@ -536,17 +647,25 @@ io.on('connection', (socket) => {
           setTimeout(() => {
             if (rooms.has(player.roomId) && rooms.get(player.roomId).players.size === 0) {
               rooms.delete(player.roomId);
-              console.log(`Cleaned up empty room: ${player.roomId}`);
+              logger.room('CLEANUP', `Cleaned up empty room: ${player.roomId}`, {
+          roomId: player.roomId,
+          lastPlayerName: player.name
+        });
             }
           }, 5 * 60 * 1000);
         }
       }
       
       players.delete(socket.id);
-      console.log(`Player ${player.name} disconnected from room ${player.roomId}`);
+      logger.room('LEAVE', `Player ${player.name} disconnected from room ${player.roomId}`, {
+        playerId: player.id,
+        playerName: player.name,
+        roomId: player.roomId,
+        socketId: socket.id
+      });
     }
     
-    console.log(`User disconnected: ${socket.id}`);
+    logger.info('SOCKET', `User disconnected: ${socket.id}`, { socketId: socket.id });
   });
 });
 
@@ -568,9 +687,18 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
+  logger.success('SERVER', `Server started on port ${PORT}`, { 
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development',
+    clientUrl: 'http://localhost:5173',
+    apiUrl: `http://localhost:${PORT}/health`
+  });
+  
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 Client: http://localhost:5173`);
   console.log(`🔧 API: http://localhost:${PORT}/health`);
+  console.log(`📋 Logs saved to: ./logs/`);
+  console.log(`👥 View active users: http://localhost:${PORT}/api/logs/active-users`);
 });
 
 module.exports = { app, server, io }; 
