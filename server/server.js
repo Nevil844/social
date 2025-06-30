@@ -6,25 +6,49 @@ const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
 
+// Load environment variables
+require('dotenv').config();
+
 const userManager = require('./users');
 const { passport, generateToken, isAuthenticated } = require('./auth');
 const { logger, getUserLoginHistory, getActiveUsers } = require('./logger');
 
 const app = express();
 const server = http.createServer(app);
+// Get allowed origins for CORS
+const getAllowedOrigins = () => {
+  if (process.env.NODE_ENV === 'production') {
+    const domain = process.env.DOMAIN;
+    return domain ? [
+      `https://${domain}`,
+      `http://${domain}`,
+      `https://${domain}:3001`,
+      `http://${domain}:3001`
+    ] : false;
+  }
+  return ['http://localhost:5173', 'http://localhost:3000'];
+};
+
+const allowedOrigins = getAllowedOrigins();
+
 const io = socketIo(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' ? false : ['http://localhost:5173', 'http://localhost:3000'],
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true
   }
 });
 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? false : ['http://localhost:5173', 'http://localhost:3000'],
+  origin: allowedOrigins,
   credentials: true
 }));
 app.use(express.json());
+
+// Trust proxy in production (for load balancers/reverse proxies)
+if (process.env.NODE_ENV === 'production' && process.env.TRUST_PROXY) {
+  app.set('trust proxy', 1);
+}
 
 // Session configuration
 app.use(session({
@@ -143,7 +167,10 @@ app.get('/auth/google/callback',
         ip: req.ip || req.connection.remoteAddress
       });
       
-      res.redirect(`http://localhost:5173?token=${token}`);
+      const clientUrl = process.env.NODE_ENV === 'production' 
+        ? `https://${process.env.DOMAIN}` 
+        : 'http://localhost:5173';
+      res.redirect(`${clientUrl}?token=${token}`);
     } catch (error) {
       logger.error('AUTH', 'Google OAuth callback error', { error: error.message });
       res.redirect('/login?error=auth_failed');
