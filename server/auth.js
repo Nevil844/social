@@ -7,7 +7,7 @@ const userManager = require('./users');
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID || 'REDACTED-GOOGLE-CLIENT-ID',
   clientSecret: process.env.GOOGLE_CLIENT_SECRET || 'REDACTED-GOOGLE-CLIENT-SECRET',
-  callbackURL: "/auth/google/callback"
+  callbackURL: '/auth/google/callback'
 }, 
 async (accessToken, refreshToken, profile, done) => {
   try {

@@ -167,9 +167,15 @@ app.get('/auth/google/callback',
         ip: req.ip || req.connection.remoteAddress
       });
       
-      const clientUrl = process.env.NODE_ENV === 'production' 
-        ? `https://${process.env.DOMAIN}` 
-        : 'http://localhost:5173';
+      let clientUrl;
+      if (process.env.NODE_ENV === 'production') {
+        // Use DOMAIN as-is if it includes protocol, otherwise add http://
+        clientUrl = process.env.DOMAIN?.startsWith('http') 
+          ? process.env.DOMAIN 
+          : `http://${process.env.DOMAIN || 'localhost:3001'}`;
+      } else {
+        clientUrl = 'http://localhost:5173';
+      }
       res.redirect(`${clientUrl}?token=${token}`);
     } catch (error) {
       logger.error('AUTH', 'Google OAuth callback error', { error: error.message });
@@ -713,16 +719,18 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const PORT = process.env.PORT || 3001;
+const CLIENT_URL = process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : `http://localhost:${PORT}`;
+
 server.listen(PORT, () => {
   logger.success('SERVER', `Server started on port ${PORT}`, { 
     port: PORT,
     environment: process.env.NODE_ENV || 'development',
-    clientUrl: 'http://localhost:5173',
+    clientUrl: CLIENT_URL,
     apiUrl: `http://localhost:${PORT}/health`
   });
   
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📱 Client: http://localhost:5173`);
+  console.log(`📱 Client: ${CLIENT_URL}`);
   console.log(`🔧 API: http://localhost:${PORT}/health`);
   console.log(`📋 Logs saved to: ./logs/`);
   console.log(`👥 View active users: http://localhost:${PORT}/api/logs/active-users`);

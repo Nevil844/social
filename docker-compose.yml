@@ -8,8 +8,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
-    volumes:
-      - ./server/.env:/app/server/.env:ro
+      - DOMAIN=http://localhost:3001
+      - GOOGLE_CLIENT_ID=REDACTED-GOOGLE-CLIENT-ID
+      - GOOGLE_CLIENT_SECRET=REDACTED-GOOGLE-CLIENT-SECRET
+      - JWT_SECRET=development-jwt-secret-key
     healthcheck:
       test: ["CMD", "node", "healthcheck.js"]
       interval: 30s
@@ -28,8 +30,11 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=3001
+      - DOMAIN=http://localhost:3001
+      - GOOGLE_CLIENT_ID=REDACTED-GOOGLE-CLIENT-ID
+      - GOOGLE_CLIENT_SECRET=REDACTED-GOOGLE-CLIENT-SECRET
+      - JWT_SECRET=development-jwt-secret-key
     volumes:
-      - ./server/.env:/app/server/.env:ro
       - ./client/src:/app/client/src
       - ./server:/app/server
     command: npm run dev 
