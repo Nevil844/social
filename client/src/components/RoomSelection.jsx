@@ -85,7 +85,7 @@ const RoomSelection = ({ onJoinRoom }) => {
 
   const fetchPublicRooms = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/rooms');
+              const response = await fetch('/api/rooms');
       const rooms = await response.json();
       setPublicRooms(rooms);
     } catch (error) {
@@ -101,7 +101,7 @@ const RoomSelection = ({ onJoinRoom }) => {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/rooms', {
+              const response = await fetch('/api/rooms', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +134,7 @@ const RoomSelection = ({ onJoinRoom }) => {
   const handleJoinCreatedRoom = () => {
     if (createdRoomCode) {
       // Find the room by code and join
-      fetch(`http://localhost:3001/api/rooms/${createdRoomCode}`)
+              fetch(`/api/rooms/${createdRoomCode}`)
         .then(response => response.json())
         .then(room => {
           onJoinRoom(room.id, playerName);
@@ -155,7 +155,7 @@ const RoomSelection = ({ onJoinRoom }) => {
 
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:3001/api/rooms/${roomCode}`);
+              const response = await fetch(`/api/rooms/${roomCode}`);
       if (response.ok) {
         const room = await response.json();
         onJoinRoom(room.id, playerName);
