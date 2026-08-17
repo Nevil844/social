@@ -11,7 +11,7 @@
     "start": "cd server && npm start"
   },
   "keywords": ["multiplayer", "virtual-workspace", "gather-town", "react", "nodejs", "socketio"],
-  "author": "Your Name",
+  "author": "Nevil844",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"

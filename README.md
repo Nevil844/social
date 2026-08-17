@@ -19,11 +19,7 @@ A modern, feature-rich multiplayer virtual workspace inspired by Gather Town, bu
 ### 🔐 Authentication & User Management
 - **Google OAuth Integration** - Secure login with Google accounts
 - **User Profiles** - Display names, emails, and profile pictures from Google
-- **Video Call Limits** - Control API usage with daily limits
-  - Authenticated users: 20 minutes of video calls per day
-  - Anonymous users: No video call access
 - **User Preferences** - Save default map, max players, and notification settings
-- **Premium Features** - Coming soon (unlimited video calls)
 
 ### 🎨 Visual Design
 - **Modern UI/UX** - Glassmorphism design with beautiful gradients and animations
@@ -32,7 +28,7 @@ A modern, feature-rich multiplayer virtual workspace inspired by Gather Town, bu
 - **Smooth Animations** - Phaser.js powered movement and interactions
 
 ### 🔧 Technical Features
-- **WebRTC Video Calls** - Integrated Daily.co for high-quality video communication
+- **Video Calls** - Coming soon
 - **Real-time Chat** - Proximity-based messaging system
 - **Socket.IO** - Real-time multiplayer synchronization
 - **JWT Authentication** - Secure token-based authentication
@@ -137,9 +133,7 @@ Create a `.env` file in the server directory:
 # Server Configuration
 NODE_ENV=production
 PORT=3001
-
-# Daily.co API (for video calls)
-DAILY_API_KEY=your_daily_api_key_here
+DOMAIN=your-domain-or-ip
 
 # Google OAuth (for authentication)
 GOOGLE_CLIENT_ID=your_google_client_id_here
@@ -148,9 +142,6 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret_here
 # Session and JWT Secrets (change these in production!)
 SESSION_SECRET=your-super-secret-session-key-change-in-production
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
-
-# Client URL (for OAuth redirects)
-CLIENT_URL=http://localhost:5173
 ```
 
 ### 🔐 Google OAuth Setup
@@ -163,47 +154,17 @@ To enable user authentication, you need Google OAuth credentials:
 4. **Configure Redirect URIs**: Add `http://localhost:3001/auth/google/callback` for development
 5. **Add to .env**: Place your Client ID and Client Secret in the server `.env` file
 
-**Note**: See [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md) for detailed setup instructions.
-
-### 🎥 Video Call Setup
-
-To enable video calls, you need a Daily.co API key:
-
-1. **Get API Key**: Visit [Daily.co Dashboard](https://dashboard.daily.co/developers)
-2. **Create Account**: Sign up for a free Daily.co account
-3. **Generate Key**: Create a new API key in the developers section
-4. **Add to .env**: Place your API key in the server `.env` file
-
-**Note**: Without the API key, video calls will run in demo mode with limited functionality.
-
-### 🔧 API Key Configuration
-
-The Daily.co API key enables:
-- ✅ Real video call rooms
-- ✅ Automatic room cleanup
-- ✅ Participant management
-- ✅ Recording capabilities (optional)
-- ✅ Advanced room settings
-
-**Demo Mode** (no API key):
-- ⚠️ Limited functionality
-- ⚠️ Demo room URLs
-- ⚠️ No room cleanup
-
 ### 👤 Authentication Features
 
 With Google OAuth configured:
 - ✅ Secure user authentication
 - ✅ User profile management
-- ✅ Video call usage tracking (20 minutes/day)
 - ✅ User preferences storage
 - ✅ Session persistence
-- ✅ Premium features coming soon
 
 **Without OAuth**:
 - ⚠️ Anonymous users only
 - ⚠️ No user profiles
-- ⚠️ No video call access
 - ⚠️ No preferences storage
 
 ## 🐳 Docker Commands
@@ -286,4 +247,4 @@ If you have any questions or need help, please open an issue on GitHub.
 
 ---
 
-**Made with ❤️ by [Your Name]** 
+**Made with ❤️ by [Nevil844](https://github.com/Nevil844)**

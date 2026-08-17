@@ -5,10 +5,10 @@ const userManager = require('./users');
 
 // Configure Google OAuth strategy
 passport.use(new GoogleStrategy({
-  clientID: process.env.GOOGLE_CLIENT_ID || 'REDACTED-GOOGLE-CLIENT-ID',
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET || 'REDACTED-GOOGLE-CLIENT-SECRET',
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: '/auth/google/callback'
-}, 
+},
 async (accessToken, refreshToken, profile, done) => {
   try {
     // Create or update user
@@ -37,7 +37,7 @@ const generateToken = (user) => {
     name: user.name
   };
   
-  return jwt.sign(payload, process.env.JWT_SECRET || 'social-jwt-secret', {
+  return jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn: '24h'
   });
 };
@@ -45,7 +45,7 @@ const generateToken = (user) => {
 // Middleware to verify JWT token
 const verifyToken = (token) => {
   try {
-    return jwt.verify(token, process.env.JWT_SECRET || 'social-jwt-secret');
+    return jwt.verify(token, process.env.JWT_SECRET);
   } catch (error) {
     throw new Error('Invalid token');
   }
