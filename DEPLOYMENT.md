@@ -61,8 +61,8 @@ newgrp docker
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/your-username/gather-clone.git
-cd gather-clone
+git clone https://github.com/Nevil844/social.git
+cd social
 ```
 
 ### 2. Configure Environment

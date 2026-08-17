@@ -47,7 +47,7 @@ A modern, feature-rich multiplayer virtual workspace inspired by Gather Town, bu
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/Nevil844/social.git
 cd social
 
 # Build and run with Docker Compose
@@ -220,7 +220,6 @@ docker run -p 3001:3001 -e NODE_ENV=production social
 
 ### Infrastructure
 - **Docker** - Containerization
-- **Daily.co** - WebRTC video calling
 - **Alpine Linux** - Lightweight container base
 
 ## 🤝 Contributing
